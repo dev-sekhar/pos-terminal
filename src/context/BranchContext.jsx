@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useTenant } from './TenantContext';
 
 const DEFAULT_BRANCHES = ['Main', 'Branch A'];
 
@@ -7,8 +8,9 @@ const BranchContext = createContext();
 export const useBranch = () => useContext(BranchContext);
 
 export const BranchProvider = ({ children }) => {
+  const { tenant } = useTenant();
   const [branches, setBranches] = useState(() => {
-    const saved = localStorage.getItem('branchesData');
+    const saved = localStorage.getItem(`${tenant}_branchesData`);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -24,14 +26,14 @@ export const BranchProvider = ({ children }) => {
 
   // Update branches if localStorage changes
   useEffect(() => {
-    const saved = localStorage.getItem('branchesData');
+    const saved = localStorage.getItem(`${tenant}_branchesData`);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         setBranches(parsed.filter(b => b.active && !b.deleted).map(b => b.tag));
       } catch {}
     }
-  }, []);
+  }, [tenant]);
 
   return (
     <BranchContext.Provider value={{ branch, setBranch, branches, setBranches }}>

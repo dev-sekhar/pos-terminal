@@ -5,6 +5,7 @@ import UploadIcon from '@mui/icons-material/Upload';
 import DownloadIcon from '@mui/icons-material/Download';
 import React, { useState, useEffect } from 'react';
 import { useBranch } from '../context/BranchContext';
+import { useTenant } from '../context/TenantContext';
 import Papa from 'papaparse';
 
 const initialProducts = [
@@ -15,8 +16,9 @@ const initialProducts = [
 
 const Products = () => {
   const { branch, branches } = useBranch();
+  const { tenant } = useTenant();
   const [products, setProducts] = useState(() => {
-    const saved = localStorage.getItem('productsData');
+    const saved = localStorage.getItem(`${tenant}_productsData`);
     return saved ? JSON.parse(saved) : initialProducts;
   });
   const [open, setOpen] = useState(false);
@@ -34,11 +36,11 @@ const Products = () => {
     setUnits(savedUnits ? JSON.parse(savedUnits) : ['kg', 'L', 'pcs']);
     const savedCurrency = localStorage.getItem('defaultCurrency');
     setCurrency(savedCurrency || 'USD');
-  }, []);
+  }, [tenant]);
 
   useEffect(() => {
-    localStorage.setItem('productsData', JSON.stringify(products));
-  }, [products]);
+    localStorage.setItem(`${tenant}_productsData`, JSON.stringify(products));
+  }, [products, tenant]);
 
   const handleOpen = () => {
     setForm({ name: '', code: '', category: '', unit: '', price: '', userName: '' });

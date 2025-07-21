@@ -3,6 +3,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import React, { useState, useEffect } from 'react';
 import branchSchema from '../schemas/branchSchema';
+import { useTenant } from '../context/TenantContext';
 
 const initialBranches = [
   { id: 1, tag: 'Main', active: true, userName: '', deleted: false },
@@ -10,8 +11,9 @@ const initialBranches = [
 ];
 
 const Branches = () => {
+  const { tenant } = useTenant();
   const [branches, setBranches] = useState(() => {
-    const saved = localStorage.getItem('branchesData');
+    const saved = localStorage.getItem(`${tenant}_branchesData`);
     return saved ? JSON.parse(saved) : initialBranches;
   });
   const [open, setOpen] = useState(false);
@@ -21,8 +23,8 @@ const Branches = () => {
   const [formErrors, setFormErrors] = useState([]);
 
   useEffect(() => {
-    localStorage.setItem('branchesData', JSON.stringify(branches));
-  }, [branches]);
+    localStorage.setItem(`${tenant}_branchesData`, JSON.stringify(branches));
+  }, [branches, tenant]);
 
   const handleOpen = () => {
     setForm({ tag: '', active: true, userName: '' });
@@ -48,7 +50,7 @@ const Branches = () => {
         // If branch is being deactivated and it was previously active
         if (!newActive && oldActive && oldBranch.tag !== 'Main') {
           // Get inventory count for this branch
-          const savedInventory = localStorage.getItem('inventoryData');
+          const savedInventory = localStorage.getItem(`${tenant}_inventoryData`);
           const allInventory = savedInventory ? JSON.parse(savedInventory) : [];
           const branchInventory = allInventory.filter(item => item.branch === oldBranch.tag && !item.deleted);
           
@@ -81,7 +83,7 @@ const Branches = () => {
     const branchToDeactivate = branches.find(b => b.tag === transferDialog.branchName);
     
     // Get current inventory
-    const savedInventory = localStorage.getItem('inventoryData');
+    const savedInventory = localStorage.getItem(`${tenant}_inventoryData`);
     const allInventory = savedInventory ? JSON.parse(savedInventory) : [];
     
     // Move inventory from the branch to Main
@@ -93,7 +95,7 @@ const Branches = () => {
     });
     
     // Save updated inventory
-    localStorage.setItem('inventoryData', JSON.stringify(updatedInventory));
+    localStorage.setItem(`${tenant}_inventoryData`, JSON.stringify(updatedInventory));
     
     // Update branch status
     setBranches(branches.map(b => b.id === branchToDeactivate.id ? { ...b, active: false } : b));

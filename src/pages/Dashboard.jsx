@@ -1,9 +1,10 @@
 import { Typography, Paper, Grid, Box } from '@mui/material'
 import React, { useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { useTenant } from '../context/TenantContext';
 
-function getSalesData() {
-  const saved = localStorage.getItem('salesData');
+function getSalesData(tenant) {
+  const saved = localStorage.getItem(`${tenant}_salesData`);
   return saved ? JSON.parse(saved) : [];
 }
 
@@ -26,16 +27,17 @@ function getFYStart() {
 }
 
 const Dashboard = () => {
-  const sales = useMemo(getSalesData, []);
+  const { tenant } = useTenant();
+  const sales = useMemo(() => getSalesData(tenant), [tenant]);
   const today = getToday();
   const month = getMonth();
   const year = getYear();
   const fyStart = getFYStart();
   const [currency, setCurrency] = React.useState('USD');
   React.useEffect(() => {
-    const savedCurrency = localStorage.getItem('defaultCurrency');
+    const savedCurrency = localStorage.getItem(`${tenant}_defaultCurrency`);
     setCurrency(savedCurrency || 'USD');
-  }, []);
+  }, [tenant]);
 
   // Total sales today
   const totalToday = sales.filter(s => s.date === today).reduce((sum, s) => sum + (Array.isArray(s.items) ? s.items.reduce((t, i) => t + ((i.qty || 0) * (i.price || 0) * (1 - (i.discount || 0) / 100) * (1 + (i.tax || 0) / 100)), 0) : 0), 0);

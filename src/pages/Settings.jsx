@@ -1,38 +1,40 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Typography, TextField, Button, MenuItem, List, ListItem, ListItemText, IconButton, Grid, Paper } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
+import { useTenant } from '../context/TenantContext';
 
 const defaultCurrencies = ['USD', 'INR', 'EUR', 'GBP', 'JPY'];
 const defaultPaymentTypes = ['Cash', 'Card', 'UPI'];
 
 const Settings = () => {
+  const { tenant } = useTenant();
   const [currency, setCurrency] = useState('USD');
   const [units, setUnits] = useState(['kg', 'L', 'pcs']);
   const [newUnit, setNewUnit] = useState('');
   const [paymentTypes, setPaymentTypes] = useState(() => {
-    const saved = localStorage.getItem('paymentTypesList');
+    const saved = localStorage.getItem(`${tenant}_paymentTypesList`);
     return saved ? JSON.parse(saved) : defaultPaymentTypes;
   });
   const [newPaymentType, setNewPaymentType] = useState('');
 
   useEffect(() => {
-    const savedCurrency = localStorage.getItem('defaultCurrency');
-    const savedUnits = localStorage.getItem('unitsList');
+    const savedCurrency = localStorage.getItem(`${tenant}_defaultCurrency`);
+    const savedUnits = localStorage.getItem(`${tenant}_unitsList`);
     if (savedCurrency) setCurrency(savedCurrency);
     if (savedUnits) setUnits(JSON.parse(savedUnits));
-  }, []);
+  }, [tenant]);
 
   useEffect(() => {
-    localStorage.setItem('defaultCurrency', currency);
-  }, [currency]);
+    localStorage.setItem(`${tenant}_defaultCurrency`, currency);
+  }, [currency, tenant]);
 
   useEffect(() => {
-    localStorage.setItem('unitsList', JSON.stringify(units));
-  }, [units]);
+    localStorage.setItem(`${tenant}_unitsList`, JSON.stringify(units));
+  }, [units, tenant]);
 
   useEffect(() => {
-    localStorage.setItem('paymentTypesList', JSON.stringify(paymentTypes));
-  }, [paymentTypes]);
+    localStorage.setItem(`${tenant}_paymentTypesList`, JSON.stringify(paymentTypes));
+  }, [paymentTypes, tenant]);
 
   const handleAddUnit = () => {
     if (newUnit && !units.includes(newUnit)) {

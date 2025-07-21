@@ -1,17 +1,23 @@
 import { Box, Typography, Paper, Table, TableHead, TableRow, TableCell, TableBody, Button, Chip, Grid } from '@mui/material';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import userSchema from '../schemas/userSchema';
-import { useState } from 'react';
+import { useTenant } from '../context/TenantContext';
 import { Alert } from '@mui/material';
 
-const users = [
-  { id: 1, name: 'Chandra', role: 'Admin', branch: 'Main' },
-  { id: 2, name: 'Ravi', role: 'Salesperson', branch: 'Branch A' },
-];
-
 const Users = () => {
+  const { tenant } = useTenant();
   const [formErrors, setFormErrors] = useState([]);
-  // Add other state hooks as needed (e.g., form, users list)
+  const [users, setUsers] = useState(() => {
+    const saved = localStorage.getItem(`${tenant}_usersData`);
+    return saved ? JSON.parse(saved) : [
+      { id: 1, name: 'Chandra', role: 'Admin', branch: 'Main' },
+      { id: 2, name: 'Ravi', role: 'Salesperson', branch: 'Branch A' },
+    ];
+  });
+
+  useEffect(() => {
+    localStorage.setItem(`${tenant}_usersData`, JSON.stringify(users));
+  }, [users, tenant]);
 
   const handleAddOrEdit = async (form) => {
     try {

@@ -5,6 +5,7 @@ import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
 import React, { useState, useEffect, useRef } from 'react';
 import { useBranch } from '../context/BranchContext';
+import { useTenant } from '../context/TenantContext';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import PrintIcon from '@mui/icons-material/Print';
@@ -70,8 +71,9 @@ const BillPrint = React.forwardRef(({ sale, calcSubtotal, calcTotal, currency },
 
 const Sales = () => {
   const { branch, branches } = useBranch();
+  const { tenant } = useTenant();
   const [sales, setSales] = useState(() => {
-    const saved = localStorage.getItem('salesData');
+    const saved = localStorage.getItem(`${tenant}_salesData`);
     return saved ? JSON.parse(saved) : initialSales;
   });
   const [open, setOpen] = useState(false);
@@ -93,8 +95,8 @@ const Sales = () => {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('salesData', JSON.stringify(sales));
-  }, [sales]);
+    localStorage.setItem(`${tenant}_salesData`, JSON.stringify(sales));
+  }, [sales, tenant]);
 
   useEffect(() => {
     setProducts(getProducts(branch));

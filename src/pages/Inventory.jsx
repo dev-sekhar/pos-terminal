@@ -26,6 +26,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import React, { useState, useEffect } from 'react';
 import { useBranch } from '../context/BranchContext';
+import { useTenant } from '../context/TenantContext';
 import inventorySchema from '../schemas/inventorySchema';
 import { Alert } from '@mui/material';
 
@@ -50,8 +51,9 @@ function getActiveBranches() {
 
 const Inventory = () => {
   const { branch } = useBranch();
+  const { tenant } = useTenant();
   const [inventory, setInventory] = useState(() => {
-    const saved = localStorage.getItem('inventoryData');
+    const saved = localStorage.getItem(`${tenant}_inventoryData`);
     return saved ? JSON.parse(saved) : initialInventory;
   });
   const [open, setOpen] = useState(false);
@@ -77,8 +79,8 @@ const Inventory = () => {
   }, [open]);
 
   useEffect(() => {
-    localStorage.setItem('inventoryData', JSON.stringify(inventory));
-  }, [inventory]);
+    localStorage.setItem(`${tenant}_inventoryData`, JSON.stringify(inventory));
+  }, [inventory, tenant]);
 
   const handleOpen = () => {
     setForm({ branch, product: '', stock: '', reorderLevel: '', userName: '' });

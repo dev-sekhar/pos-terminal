@@ -2,6 +2,7 @@ import { AppBar, Toolbar, Typography, Button, Box, Select, MenuItem, IconButton 
 import SettingsIcon from '@mui/icons-material/Settings';
 import React from 'react';
 import { useBranch } from '../context/BranchContext';
+import { useTenant } from '../context/TenantContext';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 const Header = () => {
@@ -9,6 +10,7 @@ const Header = () => {
   const navigate = useNavigate();
   const isAuthPage = location.pathname === '/login';
   const { branch, setBranch, branches } = useBranch();
+  const { tenant, setTenant, tenants } = useTenant();
   return (
     <AppBar position="static" sx={{ zIndex: 1201 }}>
       <Toolbar>
@@ -16,6 +18,22 @@ const Header = () => {
           POS Terminal
         </Typography>
         <Box display="flex" alignItems="center">
+          <Select
+            value={tenant}
+            onChange={e => setTenant(e.target.value)}
+            size="small"
+            sx={{ mr: 2, color: 'white', borderColor: 'white', minWidth: 120, background: 'rgba(255,255,255,0.08)' }}
+            variant="outlined"
+            MenuProps={{
+              PaperProps: {
+                sx: { mt: 1, minWidth: 120 }
+              }
+            }}
+          >
+            {tenants.map(t => (
+              <MenuItem value={t} key={t}>{t}</MenuItem>
+            ))}
+          </Select>
           <Select
             value={branch}
             onChange={e => setBranch(e.target.value)}

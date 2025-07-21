@@ -3,6 +3,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import React, { useState, useEffect } from 'react';
 import supplierSchema from '../schemas/supplierSchema';
+import { useTenant } from '../context/TenantContext';
 
 const initialSuppliers = [
   { id: 1, name: 'ABC Traders', contact: '1234567890', email: 'abc@traders.com', address: 'Main Street', userName: '', active: true, deleted: false },
@@ -10,8 +11,9 @@ const initialSuppliers = [
 ];
 
 const Suppliers = () => {
+  const { tenant } = useTenant();
   const [suppliers, setSuppliers] = useState(() => {
-    const saved = localStorage.getItem('suppliersData');
+    const saved = localStorage.getItem(`${tenant}_suppliersData`);
     return saved ? JSON.parse(saved) : initialSuppliers;
   });
   const [open, setOpen] = useState(false);
@@ -20,8 +22,8 @@ const Suppliers = () => {
   const [formErrors, setFormErrors] = useState([]);
 
   useEffect(() => {
-    localStorage.setItem('suppliersData', JSON.stringify(suppliers));
-  }, [suppliers]);
+    localStorage.setItem(`${tenant}_suppliersData`, JSON.stringify(suppliers));
+  }, [suppliers, tenant]);
 
   const handleOpen = () => {
     setForm({ name: '', contact: '', email: '', address: '', userName: '', active: true });

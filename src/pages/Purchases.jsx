@@ -5,6 +5,7 @@ import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
 import React, { useState, useEffect } from 'react';
 import { useBranch } from '../context/BranchContext';
+import { useTenant } from '../context/TenantContext';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import purchaseSchema from '../schemas/purchaseSchema';
@@ -28,8 +29,9 @@ const getProducts = (branch) => {
 
 const Purchases = () => {
   const { branch, branches } = useBranch();
+  const { tenant } = useTenant();
   const [purchases, setPurchases] = useState(() => {
-    const saved = localStorage.getItem('purchasesData');
+    const saved = localStorage.getItem(`${tenant}_purchasesData`);
     return saved ? JSON.parse(saved) : initialPurchases;
   });
   const [open, setOpen] = useState(false);
@@ -41,7 +43,7 @@ const Purchases = () => {
     return saved ? JSON.parse(saved) : ['Cash', 'Card', 'UPI'];
   });
   const [suppliers, setSuppliers] = useState(() => {
-    const saved = localStorage.getItem('suppliersData');
+    const saved = localStorage.getItem(`${tenant}_suppliersData`);
     const all = saved ? JSON.parse(saved) : [];
     return all.filter(s => s.active && !s.deleted);
   });
@@ -55,18 +57,18 @@ const Purchases = () => {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('purchasesData', JSON.stringify(purchases));
-  }, [purchases]);
+    localStorage.setItem(`${tenant}_purchasesData`, JSON.stringify(purchases));
+  }, [purchases, tenant]);
 
   useEffect(() => {
     setProducts(getProducts(branch));
   }, [branch]);
 
   useEffect(() => {
-    const saved = localStorage.getItem('suppliersData');
+    const saved = localStorage.getItem(`${tenant}_suppliersData`);
     const all = saved ? JSON.parse(saved) : [];
     setSuppliers(all.filter(s => s.active && !s.deleted));
-  }, []);
+  }, [tenant]);
 
   const handleOpen = () => {
     const now = new Date();

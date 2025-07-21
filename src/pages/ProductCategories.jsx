@@ -4,6 +4,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import React, { useState, useEffect } from 'react';
 import productCategorySchema from '../schemas/productCategorySchema';
 import { Alert } from '@mui/material';
+import { useTenant } from '../context/TenantContext';
 
 const initialCategories = [
   { id: 1, name: 'Grocery', description: 'Food and household items', active: true, userName: '', deleted: false },
@@ -12,8 +13,9 @@ const initialCategories = [
 ];
 
 const ProductCategories = () => {
+  const { tenant } = useTenant();
   const [categories, setCategories] = useState(() => {
-    const saved = localStorage.getItem('productCategoriesData');
+    const saved = localStorage.getItem(`${tenant}_productCategoriesData`);
     return saved ? JSON.parse(saved) : initialCategories;
   });
   const [open, setOpen] = useState(false);
@@ -22,8 +24,8 @@ const ProductCategories = () => {
   const [formErrors, setFormErrors] = useState([]);
 
   useEffect(() => {
-    localStorage.setItem('productCategoriesData', JSON.stringify(categories));
-  }, [categories]);
+    localStorage.setItem(`${tenant}_productCategoriesData`, JSON.stringify(categories));
+  }, [categories, tenant]);
 
   const handleOpen = () => {
     setForm({ name: '', description: '', active: true, userName: '' });
