@@ -1,0 +1,8 @@
+{
+  "name": "pos-terminal",
+  "private": true,
+  "workspaces": [
+    "customer/*",
+    "platform/*"
+  ]
+}
