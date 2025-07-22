@@ -1,0 +1,254 @@
+// Prisma schema for multi-tenant POS system
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// =========================
+//         ENUMS
+// =========================
+enum Role {
+  ADMIN
+  MANAGER
+  CASHIER
+}
+
+// =========================
+//        MODELS
+// =========================
+
+model Tenant {
+  id           String            @id @default(cuid())
+  name         String
+  subdomain    String            @unique
+  users        User[]
+  branches     Branch[]
+  products     Product[]
+  categories   ProductCategory[]
+  suppliers    Supplier[]
+  sales        Sale[]
+  purchases    Purchase[]
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  Inventory    Inventory[]
+  SaleItem     SaleItem[]
+  PurchaseItem PurchaseItem[]
+  deleted      Boolean           @default(false)
+}
+
+model User {
+  id                       Int               @id @default(autoincrement())
+  tenantId                 String
+  tenant                   Tenant            @relation(fields: [tenantId], references: [id])
+  email                    String
+  password                 String
+  name                     String
+  role                     Role              @default(CASHIER)
+  branchId                 Int
+  branch                   Branch            @relation("UserBranch", fields: [branchId], references: [id])
+  sales                    Sale[]
+  createdAt                DateTime          @default(now())
+  updatedAt                DateTime          @updatedAt
+  createdById              Int? // Nullable for the first user
+  createdBy                User?             @relation("CreatedUsers", fields: [createdById], references: [id])
+  createdUsers             User[]            @relation("CreatedUsers")
+  createdBranches          Branch[]          @relation("CreatedBranches")
+  createdProductCategories ProductCategory[] @relation("CreatedProductCategories")
+  createdProducts          Product[]         @relation("CreatedProducts")
+  createdInventories       Inventory[]       @relation("CreatedInventories")
+  createdSales             Sale[]            @relation("CreatedSales")
+  createdSuppliers         Supplier[]        @relation("CreatedSuppliers")
+  createdPurchases         Purchase[]        @relation("CreatedPurchases")
+  deleted                  Boolean           @default(false)
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+}
+
+model Branch {
+  id          Int         @id @default(autoincrement())
+  tenantId    String
+  tenant      Tenant      @relation(fields: [tenantId], references: [id])
+  name        String
+  tag         String // Used in frontend forms
+  location    String?
+  users       User[]      @relation("UserBranch")
+  inventory   Inventory[]
+  sales       Sale[]
+  purchases   Purchase[]
+  active      Boolean     @default(true)
+  deleted     Boolean     @default(false)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  createdById Int?
+  createdBy   User?       @relation("CreatedBranches", fields: [createdById], references: [id])
+
+  @@unique([tenantId, name])
+  @@unique([tenantId, tag])
+  @@index([tenantId])
+}
+
+model ProductCategory {
+  id          Int       @id @default(autoincrement())
+  tenantId    String
+  tenant      Tenant    @relation(fields: [tenantId], references: [id])
+  name        String
+  description String?
+  products    Product[]
+  active      Boolean   @default(true)
+  deleted     Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById Int
+  createdBy   User      @relation("CreatedProductCategories", fields: [createdById], references: [id])
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+}
+
+model Product {
+  id                Int             @id @default(autoincrement())
+  tenantId          String
+  tenant            Tenant          @relation(fields: [tenantId], references: [id])
+  name              String
+  code              String          @unique
+  unit              String
+  price             Float
+  productCategoryId Int
+  productCategory   ProductCategory @relation(fields: [productCategoryId], references: [id])
+  inventory         Inventory[]
+  saleItems         SaleItem[]
+  purchaseItems     PurchaseItem[]
+  active            Boolean         @default(true)
+  deleted           Boolean         @default(false)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  createdById       Int
+  createdBy         User            @relation("CreatedProducts", fields: [createdById], references: [id])
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+}
+
+model Inventory {
+  id           Int      @id @default(autoincrement())
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  stock        Int
+  reorderLevel Int      @default(10)
+  productId    Int
+  branchId     Int
+  product      Product  @relation(fields: [productId], references: [id])
+  branch       Branch   @relation(fields: [branchId], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  createdById  Int
+  createdBy    User     @relation("CreatedInventories", fields: [createdById], references: [id])
+  deleted      Boolean  @default(false)
+
+  @@unique([tenantId, productId, branchId])
+  @@index([tenantId])
+}
+
+model Sale {
+  id          Int        @id @default(autoincrement())
+  tenantId    String
+  tenant      Tenant     @relation(fields: [tenantId], references: [id])
+  invoice     String     @unique
+  total       Float
+  discount    Float?     @default(0)
+  paymentType String
+  datetime    DateTime
+  userId      Int // This is the salesperson
+  branchId    Int
+  user        User       @relation(fields: [userId], references: [id])
+  branch      Branch     @relation(fields: [branchId], references: [id])
+  items       SaleItem[]
+  status      String     @default("completed") // For potential future use (completed, cancelled, etc.)
+  createdAt   DateTime   @default(now())
+  createdById Int
+  createdBy   User       @relation("CreatedSales", fields: [createdById], references: [id])
+  deleted     Boolean    @default(false)
+
+  @@index([tenantId])
+  @@index([datetime])
+}
+
+model SaleItem {
+  id        Int     @id @default(autoincrement())
+  tenantId  String
+  tenant    Tenant  @relation(fields: [tenantId], references: [id])
+  quantity  Int
+  price     Float
+  discount  Float?  @default(0)
+  tax       Float?  @default(0)
+  saleId    Int
+  productId Int
+  sale      Sale    @relation(fields: [saleId], references: [id])
+  product   Product @relation(fields: [productId], references: [id])
+
+  @@unique([tenantId, saleId, productId])
+  @@index([tenantId])
+}
+
+model Supplier {
+  id          Int        @id @default(autoincrement())
+  tenantId    String
+  tenant      Tenant     @relation(fields: [tenantId], references: [id])
+  name        String
+  contact     String?
+  email       String?    @unique
+  address     String?
+  active      Boolean    @default(true)
+  deleted     Boolean    @default(false)
+  purchases   Purchase[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  createdById Int
+  createdBy   User       @relation("CreatedSuppliers", fields: [createdById], references: [id])
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+}
+
+model Purchase {
+  id          Int            @id @default(autoincrement())
+  tenantId    String
+  tenant      Tenant         @relation(fields: [tenantId], references: [id])
+  poNumber    String         @unique
+  datetime    DateTime
+  total       Float
+  supplierId  Int
+  branchId    Int
+  supplier    Supplier       @relation(fields: [supplierId], references: [id])
+  branch      Branch         @relation(fields: [branchId], references: [id])
+  items       PurchaseItem[]
+  status      String         @default("completed") // For potential future use (completed, cancelled, etc.)
+  createdAt   DateTime       @default(now())
+  createdById Int
+  createdBy   User           @relation("CreatedPurchases", fields: [createdById], references: [id])
+  deleted     Boolean        @default(false)
+
+  @@index([tenantId])
+  @@index([datetime])
+}
+
+model PurchaseItem {
+  id         Int      @id @default(autoincrement())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  quantity   Int
+  price      Float
+  purchaseId Int
+  productId  Int
+  purchase   Purchase @relation(fields: [purchaseId], references: [id])
+  product    Product  @relation(fields: [productId], references: [id])
+
+  @@unique([tenantId, purchaseId, productId])
+  @@index([tenantId])
+}
