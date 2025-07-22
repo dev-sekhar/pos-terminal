@@ -14,6 +14,17 @@ const initialProducts = [
   { id: 3, name: 'Sugar 1kg', code: 'P003', category: 'Grocery', unit: 'kg', price: 60 },
 ];
 
+const generateProductCode = (products) => {
+  const now = new Date();
+  const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
+  const todayProducts = products.filter(p => p.createdAt && p.createdAt.startsWith(now.toISOString().slice(0, 10)));
+  let nextNum = 1;
+  while (todayProducts.some(p => p.code === `P${datePart}-${String(nextNum).padStart(3, '0')}`)) {
+    nextNum++;
+  }
+  return `P${datePart}-${String(nextNum).padStart(3, '0')}`;
+};
+
 const Products = () => {
   const { branch, branches } = useBranch();
   const { tenant } = useTenant();
@@ -43,7 +54,11 @@ const Products = () => {
   }, [products, tenant]);
 
   const handleOpen = () => {
-    setForm({ name: '', code: '', category: '', unit: '', price: '', userName: '' });
+    // Generate product code automatically
+    const now = new Date();
+    const code = generateProductCode(products);
+    const createdAt = now.toISOString().slice(0, 10); // for code uniqueness
+    setForm({ name: '', code, category: '', unit: '', price: '', userName: '', createdAt });
     setEditId(null);
     setOpen(true);
   };
@@ -57,9 +72,13 @@ const Products = () => {
     if (editId) {
       setProducts(products.map(p => p.id === editId ? { ...p, ...form, price: Number(form.price) } : p));
     } else {
+      // Always generate a new code for new product
+      const now = new Date();
+      const code = generateProductCode(products);
+      const createdAt = now.toISOString().slice(0, 10);
       setProducts([
         ...products,
-        { ...form, id: Date.now(), price: Number(form.price) }
+        { ...form, code, createdAt, id: Date.now(), price: Number(form.price) }
       ]);
     }
     setOpen(false);
@@ -218,7 +237,7 @@ const Products = () => {
         <DialogTitle>{editId ? 'Edit Product' : 'Add Product'}</DialogTitle>
         <DialogContent>
           <TextField margin="dense" label="Product Name" name="name" value={form.name} onChange={handleChange} fullWidth />
-          <TextField margin="dense" label="Code" name="code" value={form.code} onChange={handleChange} fullWidth />
+          <TextField margin="dense" label="Code" name="code" value={form.code} fullWidth InputProps={{ readOnly: true }} />
           <TextField margin="dense" label="Category" name="category" value={form.category} onChange={handleChange} fullWidth />
           <FormControl margin="dense" fullWidth>
             <InputLabel>Unit</InputLabel>
