@@ -5,11 +5,13 @@ import React, { useState, useEffect } from 'react';
 import productCategorySchema from '../schemas/productCategorySchema';
 import { Alert } from '@mui/material';
 import { useTenant } from '../context/TenantContext';
+import { useUser } from '../context/UserContext';
 
 const API_BASE = '/api/categories';
 
 const ProductCategories = () => {
   const { tenant } = useTenant();
+  const { user } = useUser();
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -69,7 +71,7 @@ const ProductCategories = () => {
         const res = await fetch(API_BASE, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...form, tenantId: tenant, createdById: 1 }), // TODO: Replace createdById with real user id
+          body: JSON.stringify({ ...form, tenantId: tenant, createdById: user.id }),
         });
         if (!res.ok) throw new Error('Failed to create category');
       }
