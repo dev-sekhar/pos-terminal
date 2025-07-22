@@ -6,30 +6,43 @@ import productCategorySchema from '../schemas/productCategorySchema';
 import { Alert } from '@mui/material';
 import { useTenant } from '../context/TenantContext';
 
-const initialCategories = [
-  { id: 1, name: 'Grocery', description: 'Food and household items', active: true, userName: '', deleted: false },
-  { id: 2, name: 'Electronics', description: 'Electronic devices and accessories', active: true, userName: '', deleted: false },
-  { id: 3, name: 'Clothing', description: 'Apparel and fashion items', active: true, userName: '', deleted: false },
-];
+const API_BASE = '/api/categories';
 
 const ProductCategories = () => {
   const { tenant } = useTenant();
-  const [categories, setCategories] = useState(() => {
-    const saved = localStorage.getItem(`${tenant}_productCategoriesData`);
-    return saved ? JSON.parse(saved) : initialCategories;
-  });
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState({ name: '', description: '', active: true, userName: '' });
   const [formErrors, setFormErrors] = useState([]);
 
+  // Fetch categories from API
+  const fetchCategories = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}?tenantId=${tenant}`);
+      if (!res.ok) throw new Error('Failed to fetch categories');
+      const data = await res.json();
+      setCategories(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    localStorage.setItem(`${tenant}_productCategoriesData`, JSON.stringify(categories));
-  }, [categories, tenant]);
+    fetchCategories();
+    // eslint-disable-next-line
+  }, [tenant]);
 
   const handleOpen = () => {
     setForm({ name: '', description: '', active: true, userName: '' });
     setEditId(null);
+    setFormErrors([]);
     setOpen(true);
   };
   const handleClose = () => setOpen(false);
@@ -44,16 +57,30 @@ const ProductCategories = () => {
       await productCategorySchema.validate(form, { abortEarly: false });
       setFormErrors([]);
       if (editId) {
-        setCategories(categories.map(c => c.id === editId ? { ...c, ...form } : c));
+        // Update category
+        const res = await fetch(`${API_BASE}/${editId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...form, tenantId: tenant }),
+        });
+        if (!res.ok) throw new Error('Failed to update category');
       } else {
-        setCategories([
-          ...categories,
-          { ...form, id: Date.now(), deleted: false }
-        ]);
+        // Create category
+        const res = await fetch(API_BASE, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...form, tenantId: tenant, createdById: 1 }), // TODO: Replace createdById with real user id
+        });
+        if (!res.ok) throw new Error('Failed to create category');
       }
       setOpen(false);
+      fetchCategories();
     } catch (err) {
-      setFormErrors(err.errors);
+      if (err.name === 'ValidationError') {
+        setFormErrors(err.errors);
+      } else {
+        setFormErrors([err.message]);
+      }
       return;
     }
   };
@@ -61,11 +88,20 @@ const ProductCategories = () => {
   const handleEdit = (category) => {
     setForm({ ...category });
     setEditId(category.id);
+    setFormErrors([]);
     setOpen(true);
   };
 
-  const handleDelete = (id) => {
-    setCategories(categories.map(c => c.id === id ? { ...c, deleted: true } : c));
+  const handleDelete = async (id) => {
+    try {
+      const res = await fetch(`${API_BASE}/${id}?tenantId=${tenant}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error('Failed to delete category');
+      fetchCategories();
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
   const filteredCategories = categories.filter(c => !c.deleted);
@@ -73,13 +109,14 @@ const ProductCategories = () => {
   return (
     <Box>
       <Grid container alignItems="center" spacing={2} sx={{ mb: 2 }}>
-        <Grid size={{ xs: 12, sm: 6 }}>
+        <Grid item xs={12} sm={6}>
           <Typography variant="h4" gutterBottom>Product Categories</Typography>
         </Grid>
-        <Grid size={{ xs: 12, sm: 6 }} sx={{ textAlign: { xs: 'left', sm: 'right' } }}>
+        <Grid item xs={12} sm={6} sx={{ textAlign: { xs: 'left', sm: 'right' } }}>
           <Button variant="contained" onClick={handleOpen}>Add Category</Button>
         </Grid>
       </Grid>
+      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
       <Box sx={{ width: '100%', overflowX: 'auto' }}>
         <Paper sx={{ minWidth: 600 }}>
           <Table>
@@ -92,7 +129,11 @@ const ProductCategories = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {filteredCategories.map(c => (
+              {loading ? (
+                <TableRow><TableCell colSpan={4}>Loading...</TableCell></TableRow>
+              ) : filteredCategories.length === 0 ? (
+                <TableRow><TableCell colSpan={4}>No categories found.</TableCell></TableRow>
+              ) : filteredCategories.map(c => (
                 <TableRow key={c.id}>
                   <TableCell>{c.name}</TableCell>
                   <TableCell>{c.description}</TableCell>
