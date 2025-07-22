@@ -70,7 +70,7 @@ const Products = () => {
 
   const handleAddOrEdit = () => {
     if (editId) {
-      setProducts(products.map(p => p.id === editId ? { ...p, ...form, price: Number(form.price) } : p));
+      setProducts(products.map(p => p.id === editId ? { ...p, ...form, price: Number(form.price), tenant } : p));
     } else {
       // Always generate a new code for new product
       const now = new Date();
@@ -78,7 +78,7 @@ const Products = () => {
       const createdAt = now.toISOString().slice(0, 10);
       setProducts([
         ...products,
-        { ...form, code, createdAt, id: Date.now(), price: Number(form.price) }
+        { ...form, code, createdAt, id: Date.now(), price: Number(form.price), tenant }
       ]);
     }
     setOpen(false);
@@ -161,7 +161,8 @@ const Products = () => {
   const handleImportConfirm = () => {
     const newProducts = importDialog.data.map(product => ({
       ...product,
-      id: Date.now() + Math.random() // Ensure unique IDs
+      id: Date.now() + Math.random(), // Ensure unique IDs
+      tenant
     }));
 
     setProducts([...products, ...newProducts]);
@@ -186,8 +187,8 @@ const Products = () => {
     document.body.removeChild(link);
   };
 
-  // Filter products by not deleted
-  const filteredProducts = products.filter(p => !p.deleted);
+  // Filter products by tenant and not deleted
+  const filteredProducts = products.filter(p => p.tenant === tenant && !p.deleted);
 
   return (
     <Box>
