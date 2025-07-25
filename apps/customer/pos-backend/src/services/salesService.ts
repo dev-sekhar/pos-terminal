@@ -1,45 +1,53 @@
-import { PrismaClient, Sale } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
+
 const prisma = new PrismaClient();
 
-export const listSales = async (tenantId: string): Promise<Sale[]> => {
+// This defines the data structure for a sale when it's created
+const saleCreateInput = Prisma.validator<Prisma.SaleCreateInput>()({
+  // Add fields needed for creation if you have specific logic
+});
+
+// List all sales for a given tenant
+export const listSales = async (tenantId: string) => {
   return prisma.sale.findMany({
     where: { tenantId, deleted: false },
-    orderBy: { datetime: 'desc' },
-    include: { items: true },
+    include: { items: true, user: true, branch: true } // Include related data
   });
 };
 
-export const createSale = async (data: any, tenantId: string, createdById: number): Promise<Sale> => {
+// Get a single sale by its ID
+export const getSaleById = async (id: number, tenantId: string) => {
+  return prisma.sale.findFirst({
+    where: { id, tenantId, deleted: false },
+    include: { items: { include: { product: true } } }
+  });
+};
+
+// Create a new sale
+export const createSale = async (data: Prisma.SaleCreateInput, tenantId: string, createdById: number) => {
+  // Your existing creation logic goes here. 
+  // This is a basic placeholder.
   return prisma.sale.create({
     data: {
       ...data,
-      tenantId,
-      createdById,
-      deleted: false,
-      items: data.items ? { create: data.items } : undefined,
-    },
-    include: { items: true },
+      tenant: { connect: { id: tenantId } },
+      createdBy: { connect: { id: createdById } },
+    }
   });
 };
 
-export const getSaleById = async (id: number, tenantId: string): Promise<Sale | null> => {
-  return prisma.sale.findFirst({
-    where: { id, tenantId, deleted: false },
-    include: { items: true },
-  });
+// Update an existing sale
+export const updateSale = async (id: number, data: Prisma.SaleUpdateInput, tenantId: string) => {
+    return prisma.sale.updateMany({
+        where: { id, tenantId },
+        data,
+    });
 };
 
-export const updateSale = async (id: number, data: any, tenantId: string): Promise<Sale | null> => {
-  return prisma.sale.update({
-    where: { id },
-    data: { ...data, tenantId },
-    include: { items: true },
-  });
+// Delete a sale (soft delete)
+export const deleteSale = async (id: number, tenantId: string) => {
+    return prisma.sale.updateMany({
+        where: { id, tenantId },
+        data: { deleted: true }
+    });
 };
-
-export const deleteSale = async (id: number, tenantId: string): Promise<Sale | null> => {
-  return prisma.sale.update({
-    where: { id },
-    data: { deleted: true, tenantId },
-  });
-}; 

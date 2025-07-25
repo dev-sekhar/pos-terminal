@@ -8,12 +8,10 @@ export const useTenant = () => useContext(TenantContext);
 
 function getSubdomain() {
   const host = window.location.hostname;
-  // e.g., acme.yourapp.com or acme.localhost
   const parts = host.split('.');
   if (parts.length > 2) {
     return parts[0];
   }
-  // For localhost:3000 or similar, support acme.localhost
   if (parts.length === 2 && parts[1] === 'localhost') {
     return parts[0];
   }
@@ -26,27 +24,23 @@ export const TenantProvider = ({ children }) => {
     return saved ? JSON.parse(saved) : DEFAULT_TENANTS;
   });
   const [tenant, setTenant] = useState(() => {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    if (user.tenant && user.tenant.name) return user.tenant.name;
     const sub = getSubdomain();
-    const saved = localStorage.getItem('currentTenant');
-    if (sub && (saved === null || saved === undefined)) {
-      // If subdomain matches a known tenant, use it
-      const match = DEFAULT_TENANTS.find(t => t.toLowerCase() === sub.toLowerCase());
-      if (match) return match;
-      // Otherwise, use subdomain as tenant
-      return sub;
-    }
+    if (sub) return sub; // Use subdomain if present
+    const saved = localStorage.getItem('tenantName');
     return saved || DEFAULT_TENANTS[0];
   });
+  const [tenantLocked, setTenantLocked] = useState(() => !!localStorage.getItem('token'));
 
   useEffect(() => {
-    localStorage.setItem('currentTenant', tenant);
+    localStorage.setItem('tenantName', tenant);
   }, [tenant]);
 
   useEffect(() => {
     localStorage.setItem('tenantsList', JSON.stringify(tenants));
   }, [tenants]);
 
-  // If subdomain changes, update tenant
   useEffect(() => {
     const sub = getSubdomain();
     if (sub && tenants.map(t => t.toLowerCase()).includes(sub.toLowerCase()) && tenant.toLowerCase() !== sub.toLowerCase()) {
@@ -54,8 +48,33 @@ export const TenantProvider = ({ children }) => {
     }
   }, [tenants]);
 
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    setTenantLocked(!!token);
+  }, []);
+
+  useEffect(() => {
+    if (tenantLocked) {
+      setTenants([tenant]);
+    }
+  }, [tenant, tenantLocked]);
+
+  useEffect(() => {
+    // If the current tenant is not in tenants, set tenants to [tenant] and lock
+    if (!tenants.includes(tenant)) {
+      setTenants([tenant]);
+      setTenantLocked(true);
+    }
+  }, [tenant, tenants]);
+
+  const setTenantAndLock = (tenantValue) => {
+    setTenant(tenantValue);
+    setTenantLocked(true);
+    localStorage.setItem('tenantName', tenantValue);
+  };
+
   return (
-    <TenantContext.Provider value={{ tenant, setTenant, tenants, setTenants }}>
+    <TenantContext.Provider value={{ tenant, setTenant, tenants, setTenants, tenantLocked, setTenantAndLock }}>
       {children}
     </TenantContext.Provider>
   );

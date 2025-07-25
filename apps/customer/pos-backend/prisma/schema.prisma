@@ -111,12 +111,14 @@ model ProductCategory {
   @@index([tenantId])
 }
 
+// In schema.prisma
+
 model Product {
   id                Int             @id @default(autoincrement())
   tenantId          String
   tenant            Tenant          @relation(fields: [tenantId], references: [id])
   name              String
-  code              String          @unique
+  code              String // The old `@unique` tag is removed from this line
   unit              String
   price             Float
   productCategoryId Int
@@ -131,6 +133,10 @@ model Product {
   createdById       Int
   createdBy         User            @relation("CreatedProducts", fields: [createdById], references: [id])
 
+  // --- NEW, CORRECT CONSTRAINTS ---
+  // Enforces that the combination of tenantId and code must be unique.
+  @@unique([tenantId, code])
+  // Enforces that the combination of tenantId and name must be unique.
   @@unique([tenantId, name])
   @@index([tenantId])
 }

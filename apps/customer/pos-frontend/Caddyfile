@@ -1,0 +1,12 @@
+# Caddy will listen on port 8080 and be the only server you access from the browser.
+http://lvh.me:8080, http://*.lvh.me:8080 {
+    # API requests are proxied to your backend on port 3000
+    handle /api/* {
+        reverse_proxy localhost:3000
+    }
+
+    # All other requests are proxied to your frontend on port 5173
+    handle {
+        reverse_proxy localhost:5173
+    }
+}

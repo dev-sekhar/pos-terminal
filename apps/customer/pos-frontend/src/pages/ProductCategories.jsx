@@ -1,133 +1,156 @@
-import { Box, Typography, Paper, Table, TableHead, TableRow, TableCell, TableBody, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, IconButton, Grid, Chip } from '@mui/material';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Box, Typography, Paper, Table, TableHead, TableRow, TableCell, TableBody, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, IconButton, Alert, CircularProgress } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
-import React, { useState, useEffect } from 'react';
-import productCategorySchema from '../schemas/productCategorySchema';
-import { Alert } from '@mui/material';
 import { useTenant } from '../context/TenantContext';
 
-const initialCategories = [
-  { id: 1, name: 'Grocery', description: 'Food and household items', active: true, userName: '', deleted: false },
-  { id: 2, name: 'Electronics', description: 'Electronic devices and accessories', active: true, userName: '', deleted: false },
-  { id: 3, name: 'Clothing', description: 'Apparel and fashion items', active: true, userName: '', deleted: false },
-];
+const initialFormState = { name: '', description: '' };
 
 const ProductCategories = () => {
   const { tenant } = useTenant();
-  const [categories, setCategories] = useState(() => {
-    const saved = localStorage.getItem(`${tenant}_productCategoriesData`);
-    return saved ? JSON.parse(saved) : initialCategories;
-  });
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
   const [open, setOpen] = useState(false);
-  const [editId, setEditId] = useState(null);
-  const [form, setForm] = useState({ name: '', description: '', active: true, userName: '' });
+  const [isEditing, setIsEditing] = useState(false);
+  const [currentCategory, setCurrentCategory] = useState(initialFormState);
+
   const [formErrors, setFormErrors] = useState([]);
 
-  useEffect(() => {
-    localStorage.setItem(`${tenant}_productCategoriesData`, JSON.stringify(categories));
-  }, [categories, tenant]);
+  const fetchCategories = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch('/api/categories', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error('Failed to fetch categories');
+      const data = await res.json();
+      setCategories(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  const handleOpen = () => {
-    setForm({ name: '', description: '', active: true, userName: '' });
-    setEditId(null);
+  useEffect(() => {
+    if (tenant) {
+      fetchCategories();
+    }
+  }, [tenant, fetchCategories]);
+
+  const handleOpen = (category = null) => {
+    setIsEditing(!!category);
+    setCurrentCategory(category ? { id: category.id, name: category.name, description: category.description } : initialFormState);
+    setFormErrors([]);
     setOpen(true);
   };
+
   const handleClose = () => setOpen(false);
 
   const handleChange = e => {
-    const { name, value, type, checked } = e.target;
-    setForm(f => ({ ...f, [name]: type === 'checkbox' ? checked : value }));
+    setCurrentCategory(c => ({ ...c, [e.target.name]: e.target.value }));
   };
 
-  const handleAddOrEdit = async () => {
-    try {
-      await productCategorySchema.validate(form, { abortEarly: false });
-      setFormErrors([]);
-      if (editId) {
-        setCategories(categories.map(c => c.id === editId ? { ...c, ...form } : c));
-      } else {
-        setCategories([
-          ...categories,
-          { ...form, id: Date.now(), deleted: false }
-        ]);
-      }
-      setOpen(false);
-    } catch (err) {
-      setFormErrors(err.errors);
+  const handleSave = async () => {
+    if (!currentCategory.name) {
+      setFormErrors(['Category Name is required.']);
       return;
+    }
+    setFormErrors([]);
+
+    const token = localStorage.getItem('token');
+    const method = isEditing ? 'PUT' : 'POST';
+    const url = isEditing ? `/api/categories/${currentCategory.id}` : '/api/categories';
+    
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(currentCategory)
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.message || 'Failed to save category');
+      }
+      handleClose();
+      fetchCategories();
+    } catch (err) {
+      setFormErrors([err.message]);
     }
   };
 
-  const handleEdit = (category) => {
-    setForm({ ...category });
-    setEditId(category.id);
-    setOpen(true);
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this category?')) return;
+    
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch(`/api/categories/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.message || 'Failed to delete category');
+      }
+      fetchCategories();
+    } catch (err) {
+      setError(err.message);
+    }
   };
-
-  const handleDelete = (id) => {
-    setCategories(categories.map(c => c.id === id ? { ...c, deleted: true } : c));
-  };
-
-  const filteredCategories = categories.filter(c => !c.deleted);
+  
+  if (loading) return <CircularProgress />;
+  if (error) return <Alert severity="error">{error}</Alert>;
 
   return (
     <Box>
-      <Grid container alignItems="center" spacing={2} sx={{ mb: 2 }}>
-        <Grid size={{ xs: 12, sm: 6 }}>
-          <Typography variant="h4" gutterBottom>Product Categories</Typography>
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6 }} sx={{ textAlign: { xs: 'left', sm: 'right' } }}>
-          <Button variant="contained" onClick={handleOpen}>Add Category</Button>
-        </Grid>
-      </Grid>
-      <Box sx={{ width: '100%', overflowX: 'auto' }}>
-        <Paper sx={{ minWidth: 600 }}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Name</TableCell>
-                <TableCell>Description</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {filteredCategories.map(c => (
-                <TableRow key={c.id}>
-                  <TableCell>{c.name}</TableCell>
-                  <TableCell>{c.description}</TableCell>
-                  <TableCell>
-                    {c.active ? <Chip label="Active" color="success" /> : <Chip label="Inactive" color="default" />}
-                  </TableCell>
-                  <TableCell>
-                    <IconButton onClick={() => handleEdit(c)} size="small"><EditIcon /></IconButton>
-                    <IconButton onClick={() => handleDelete(c.id)} size="small" color="error"><DeleteIcon /></IconButton>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Paper>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+        <Typography variant="h4">Product Categories</Typography>
+        <Button variant="contained" onClick={() => handleOpen()}>Add Category</Button>
       </Box>
-      <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
-        <DialogTitle>{editId ? 'Edit Category' : 'Add Category'}</DialogTitle>
+      <Paper>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell>Name</TableCell>
+              <TableCell>Description</TableCell>
+              <TableCell>Created By</TableCell>
+              <TableCell>Actions</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {categories.map(cat => (
+              <TableRow key={cat.id}>
+                <TableCell>{cat.name}</TableCell>
+                <TableCell>{cat.description}</TableCell>
+                <TableCell>{cat.createdBy?.name || 'N/A'}</TableCell>
+                <TableCell>
+                  <IconButton onClick={() => handleOpen(cat)}><EditIcon /></IconButton>
+                  <IconButton onClick={() => handleDelete(cat.id)} color="error"><DeleteIcon /></IconButton>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Paper>
+      
+      <Dialog open={open} onClose={handleClose}>
+        <DialogTitle>{isEditing ? 'Edit Category' : 'Add Category'}</DialogTitle>
         <DialogContent>
-          {formErrors.length > 0 && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {formErrors.map((msg, idx) => <div key={idx}>{msg}</div>)}
-            </Alert>
-          )}
-          <TextField margin="dense" label="Category Name" name="name" value={form.name} onChange={handleChange} fullWidth />
-          <TextField margin="dense" label="Description" name="description" value={form.description} onChange={handleChange} fullWidth multiline rows={3} />
-          <TextField margin="dense" label="User Name" name="userName" value={form.userName} onChange={handleChange} fullWidth />
+          {formErrors.length > 0 && <Alert severity="error" sx={{ mb: 2 }}>{formErrors.join(', ')}</Alert>}
+          <TextField margin="dense" label="Category Name" name="name" value={currentCategory.name} onChange={handleChange} fullWidth autoFocus/>
+          <TextField margin="dense" label="Description" name="description" value={currentCategory.description} onChange={handleChange} fullWidth />
         </DialogContent>
         <DialogActions>
           <Button onClick={handleClose}>Cancel</Button>
-          <Button onClick={handleAddOrEdit} variant="contained">{editId ? 'Save' : 'Add'}</Button>
+          <Button onClick={handleSave} variant="contained">{isEditing ? 'Save' : 'Add'}</Button>
         </DialogActions>
       </Dialog>
     </Box>
   );
 };
 
-export default ProductCategories; 
+export default ProductCategories;
