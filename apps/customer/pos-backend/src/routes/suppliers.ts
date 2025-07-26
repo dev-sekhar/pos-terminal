@@ -3,10 +3,10 @@ import * as suppliersController from '../controllers/suppliersController';
 
 const router = Router();
 
+// Define the routes for suppliers
+// These will match the endpoints defined in the suppliersController
 router.get('/', suppliersController.listSuppliers);
 router.post('/', suppliersController.createSupplier);
-router.get('/:id', suppliersController.getSupplierById);
-router.put('/:id', suppliersController.updateSupplier);
 router.delete('/:id', suppliersController.deleteSupplier);
 
-export default router; 
+export default router;

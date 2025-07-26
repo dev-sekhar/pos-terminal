@@ -1,228 +1,178 @@
-import {
-  Box,
-  Typography,
-  Paper,
-  TableContainer,
-  Table,
-  TableHead,
-  TableRow,
-  TableCell,
-  TableBody,
-  Grid,
-  Chip,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  InputLabel,
-  FormControl,
-  Select,
-  MenuItem,
-  IconButton
-} from '@mui/material';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Box, Typography, Paper, Table, TableHead, TableRow, TableCell, TableBody, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, IconButton, FormControl, InputLabel, Select, MenuItem, Chip, Alert, CircularProgress, Grid } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
-import React, { useState, useEffect } from 'react';
-import { useBranch } from '../context/BranchContext';
 import { useTenant } from '../context/TenantContext';
-import inventorySchema from '../schemas/inventorySchema';
-import { Alert } from '@mui/material';
 
-const initialInventory = [
-  { id: 1, product: 'Rice 1kg', branch: 'Main', stock: 30, reorderLevel: 20 },
-  { id: 2, product: 'Oil 1L', branch: 'Main', stock: 8, reorderLevel: 10 },
-  { id: 3, product: 'Sugar 1kg', branch: 'Branch A', stock: 4, reorderLevel: 10 },
-  { id: 4, product: 'Salt 500g', branch: 'Branch A', stock: 22, reorderLevel: 15 },
-];
-
-function getActiveProducts() {
-  const saved = localStorage.getItem('productsData');
-  const all = saved ? JSON.parse(saved) : [];
-  return all.filter(p => !p.deleted);
-}
-
-function getActiveBranches() {
-  const saved = localStorage.getItem('branchesData');
-  const all = saved ? JSON.parse(saved) : [];
-  return all.filter(b => b.active && !b.deleted);
-}
+const initialFormState = { productId: '', branchId: '', stock: '', reorderLevel: '' };
 
 const Inventory = () => {
-  const { branch } = useBranch();
   const { tenant } = useTenant();
-  const [inventory, setInventory] = useState(() => {
-    const saved = localStorage.getItem(`${tenant}_inventoryData`);
-    return saved ? JSON.parse(saved) : initialInventory;
-  });
+  const [inventory, setInventory] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [branches, setBranches] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  
   const [open, setOpen] = useState(false);
-  const [editId, setEditId] = useState(null);
-  const [form, setForm] = useState({ branch: branch || '', product: '', stock: '', reorderLevel: '', userName: '' });
-  const [products, setProducts] = useState(getActiveProducts());
-  const [branches, setBranches] = useState(getActiveBranches());
-  const [currency, setCurrency] = useState('USD');
+  const [isEditing, setIsEditing] = useState(false);
+  const [currentItem, setCurrentItem] = useState(initialFormState);
+  
   const [formErrors, setFormErrors] = useState([]);
 
-  useEffect(() => {
-    const savedCurrency = localStorage.getItem('defaultCurrency');
-    setCurrency(savedCurrency || 'USD');
+  const callApi = useCallback(async (url, options = {}) => {
+    const token = localStorage.getItem('token');
+    const response = await fetch(url, {
+      ...options,
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', ...options.headers },
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({ message: 'An unknown error occurred' }));
+      throw new Error(errData.message);
+    }
+    return response.status === 204 ? null : response.json();
   }, []);
 
-  useEffect(() => {
-    setProducts(getActiveProducts());
-  }, [open]);
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const [invData, prodData, branchData] = await Promise.all([
+        callApi('/api/inventory'),
+        callApi('/api/products'),
+        callApi('/api/branches'),
+      ]);
+      setInventory(invData || []);
+      setProducts(prodData || []);
+      setBranches(branchData || []);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [callApi]);
 
-  // Update branches list when dialog opens
   useEffect(() => {
-    if (open) setBranches(getActiveBranches());
-  }, [open]);
+    if (tenant) fetchData();
+  }, [tenant, fetchData]);
 
-  useEffect(() => {
-    localStorage.setItem(`${tenant}_inventoryData`, JSON.stringify(inventory));
-  }, [inventory, tenant]);
-
-  const handleOpen = () => {
-    setForm({ branch, product: '', stock: '', reorderLevel: '', userName: '' });
-    setEditId(null);
+  const handleOpen = (item = null) => {
+    setIsEditing(!!item);
+    setCurrentItem(item ? { ...item } : initialFormState);
+    setFormErrors([]);
     setOpen(true);
   };
+  
   const handleClose = () => setOpen(false);
+  const handleChange = e => setCurrentItem(i => ({ ...i, [e.target.name]: e.target.value }));
 
-  const handleChange = e => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
-
-  const handleAddOrEdit = async () => {
+  const handleSave = async () => {
+    // --- THIS IS THE FIX (Part 1: Frontend Validation) ---
+    // Enforce the business rule on the frontend before making an API call.
+    if (Number(currentItem.reorderLevel) > Number(currentItem.stock)) {
+      setFormErrors(["Reorder level cannot be greater than the stock."]);
+      return; // Stop the submission
+    }
+    
+    setFormErrors([]);
+    const method = isEditing ? 'PUT' : 'POST';
+    const url = isEditing ? `/api/inventory/${currentItem.id}` : '/api/inventory';
+    
     try {
-      await inventorySchema.validate(form, { abortEarly: false });
-      setFormErrors([]);
-      if (editId) {
-        setInventory(inventory.map(item => item.id === editId ? { ...item, ...form, stock: Number(form.stock), reorderLevel: Number(form.reorderLevel) } : item));
-      } else {
-        setInventory([
-          ...inventory,
-          { ...form, id: Date.now(), stock: Number(form.stock), reorderLevel: Number(form.reorderLevel) }
-        ]);
-      }
-      setOpen(false);
+      await callApi(url, { method, body: JSON.stringify(currentItem) });
+      handleClose();
+      fetchData();
     } catch (err) {
-      setFormErrors(err.errors);
-      return;
+      setFormErrors([err.message]);
     }
   };
 
-  const handleEdit = (item) => {
-    setForm({ ...item });
-    setEditId(item.id);
-    setOpen(true);
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this inventory record?')) return;
+    try {
+      await callApi(`/api/inventory/${id}`, { method: 'DELETE' });
+      fetchData();
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
-  const handleDelete = (id) => {
-    setInventory(inventory.map(item => item.id === id ? { ...item, deleted: true } : item));
-  };
+  if (loading) return <CircularProgress />;
+  if (error) return <Alert severity="error">{error}</Alert>;
 
-  // Filter inventory by current branch and not deleted
-  const filteredData = inventory.filter(item => item.branch === branch && !item.deleted);
+  const lowStockAlerts = inventory.filter(item => item.stock < item.reorderLevel);
 
   return (
     <Box>
-      <Grid container alignItems="center" spacing={2} sx={{ mb: 2 }}>
-        <Grid size={{ xs: 12, sm: 6 }}>
-          <Typography variant="h4" gutterBottom>Inventory</Typography>
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6 }} sx={{ textAlign: { xs: 'left', sm: 'right' } }}>
-          <Button variant="contained" onClick={handleOpen}>Add Inventory</Button>
-        </Grid>
-      </Grid>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+        <Typography variant="h4">Inventory</Typography>
+        <Button variant="contained" onClick={() => handleOpen()}>Add Stock</Button>
+      </Box>
 
-      {/* Low Stock Alerts */}
-      <Grid container spacing={2} mb={2}>
-        {filteredData
-          .filter(item => item.stock < item.reorderLevel)
-          .map(item => (
-            <Grid size={{ xs: 12, md: 6, lg: 4 }} key={item.id}>
+      {lowStockAlerts.length > 0 && (
+        <Grid container spacing={2} mb={2}>
+          {lowStockAlerts.map(item => (
+            // --- THIS IS THE FIX (Part 2: MUI Grid Syntax) ---
+            // Props like xs, md, lg are now passed directly to the Grid component.
+            <Grid key={item.id} xs={12} md={6} lg={4}>
               <Paper elevation={2} sx={{ p: 2, backgroundColor: '#fff4f4' }}>
-                <Typography variant="subtitle1">
-                  🔴 Low Stock Alert
-                </Typography>
+                <Typography variant="subtitle1">🔴 Low Stock Alert</Typography>
                 <Typography>
-                  <strong>{item.product}</strong> has only {item.stock} units left (min {item.reorderLevel})
+                  <strong>{item.product.name}</strong> at <strong>{item.branch.name}</strong> has only {item.stock} units left.
                 </Typography>
               </Paper>
             </Grid>
           ))}
-      </Grid>
+        </Grid>
+      )}
 
-      {/* Inventory Table */}
-      <Box sx={{ width: '100%', overflowX: 'auto' }}>
-        <TableContainer component={Paper} sx={{ minWidth: 600 }}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Product</TableCell>
-                <TableCell>Branch</TableCell>
-                <TableCell>Stock</TableCell>
-                <TableCell>Reorder Level</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Actions</TableCell>
+      <Paper>
+        <Table>
+          <TableHead><TableRow>
+            <TableCell>Product</TableCell><TableCell>Branch</TableCell><TableCell>Stock</TableCell><TableCell>Reorder Level</TableCell><TableCell>Status</TableCell><TableCell>Actions</TableCell>
+          </TableRow></TableHead>
+          <TableBody>
+            {inventory.map(item => (
+              <TableRow key={item.id}>
+                <TableCell>{item.product.name}</TableCell>
+                <TableCell>{item.branch.name}</TableCell>
+                <TableCell>{item.stock}</TableCell>
+                <TableCell>{item.reorderLevel}</TableCell>
+                <TableCell>
+                  {item.stock < item.reorderLevel ? <Chip label="Low" color="error" /> : <Chip label="OK" color="success" />}
+                </TableCell>
+                <TableCell>
+                  <IconButton onClick={() => handleOpen(item)}><EditIcon /></IconButton>
+                  <IconButton onClick={() => handleDelete(item.id)} color="error"><DeleteIcon /></IconButton>
+                </TableCell>
               </TableRow>
-            </TableHead>
-            <TableBody>
-              {filteredData.map(item => (
-                <TableRow key={item.id}>
-                  <TableCell>{item.product}</TableCell>
-                  <TableCell>{item.branch}</TableCell>
-                  <TableCell>{item.stock}</TableCell>
-                  <TableCell>{item.reorderLevel}</TableCell>
-                  <TableCell>
-                    {item.stock < item.reorderLevel ? (
-                      <Chip label="Low" color="error" />
-                    ) : (
-                      <Chip label="OK" color="success" />
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <IconButton onClick={() => handleEdit(item)} size="small"><EditIcon /></IconButton>
-                    <IconButton onClick={() => handleDelete(item.id)} size="small" color="error"><DeleteIcon /></IconButton>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Box>
+            ))}
+          </TableBody>
+        </Table>
+      </Paper>
+      
       <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
-        <DialogTitle>{editId ? 'Edit Inventory' : 'Add Inventory'}</DialogTitle>
+        <DialogTitle>{isEditing ? 'Edit Inventory' : 'Add New Stock'}</DialogTitle>
         <DialogContent>
-          {formErrors.length > 0 && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {formErrors.map((msg, idx) => <div key={idx}>{msg}</div>)}
-            </Alert>
-          )}
-          <FormControl fullWidth sx={{ mt: 1, mb: 2 }}>
-            <InputLabel>Branch</InputLabel>
-            <Select name="branch" value={form.branch} label="Branch" onChange={handleChange}>
-              {branches.map(b => (
-                <MenuItem value={b.tag} key={b.id}>{b.tag}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <FormControl fullWidth sx={{ mb: 2 }}>
+          {formErrors.length > 0 && <Alert severity="error" sx={{ mb: 2 }}>{formErrors.join(', ')}</Alert>}
+          <FormControl fullWidth margin="dense" disabled={isEditing}>
             <InputLabel>Product</InputLabel>
-            <Select name="product" value={form.product} label="Product" onChange={handleChange}>
-              {products.map(p => (
-                <MenuItem value={p.name} key={p.id}>{p.name}</MenuItem>
-              ))}
+            <Select name="productId" value={currentItem.productId} label="Product" onChange={handleChange}>
+              {products.map(p => <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>)}
             </Select>
           </FormControl>
-          <TextField margin="dense" label="Stock" name="stock" value={form.stock} onChange={handleChange} type="number" fullWidth sx={{ mb: 2 }} />
-          <TextField margin="dense" label="Reorder Level" name="reorderLevel" value={form.reorderLevel} onChange={handleChange} type="number" fullWidth />
-          <TextField margin="dense" label="User Name" name="userName" value={form.userName} onChange={handleChange} fullWidth sx={{ mb: 2 }} />
+          <FormControl fullWidth margin="dense" disabled={isEditing}>
+            <InputLabel>Branch</InputLabel>
+            <Select name="branchId" value={currentItem.branchId} label="Branch" onChange={handleChange}>
+              {branches.map(b => <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>)}
+            </Select>
+          </FormControl>
+          <TextField margin="dense" label="Stock Quantity" name="stock" value={currentItem.stock} onChange={handleChange} type="number" fullWidth />
+          <TextField margin="dense" label="Reorder Level" name="reorderLevel" value={currentItem.reorderLevel} onChange={handleChange} type="number" fullWidth />
         </DialogContent>
         <DialogActions>
           <Button onClick={handleClose}>Cancel</Button>
-          <Button onClick={handleAddOrEdit} variant="contained">{editId ? 'Save' : 'Add'}</Button>
+          <Button onClick={handleSave} variant="contained">{isEditing ? 'Save Changes' : 'Add Stock'}</Button>
         </DialogActions>
       </Dialog>
     </Box>
@@ -230,4 +180,3 @@ const Inventory = () => {
 };
 
 export default Inventory;
-  

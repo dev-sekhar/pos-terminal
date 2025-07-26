@@ -1,77 +1,166 @@
-import { Box, Typography, Paper, Table, TableHead, TableRow, TableCell, TableBody, Button, Chip, Grid } from '@mui/material';
-import React, { useEffect, useState } from 'react';
-import userSchema from '../schemas/userSchema';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Box, Typography, Paper, Table, TableHead, TableRow, TableCell, TableBody, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, IconButton, Select, MenuItem, FormControl, InputLabel, Chip, Alert, CircularProgress } from '@mui/material';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
 import { useTenant } from '../context/TenantContext';
-import { Alert } from '@mui/material';
+
+const initialFormState = { name: '', email: '', password: '', role: 'CASHIER', branchId: '' };
+const roles = ['ADMIN', 'MANAGER', 'CASHIER'];
 
 const Users = () => {
   const { tenant } = useTenant();
+  const [users, setUsers] = useState([]);
+  const [branches, setBranches] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const [open, setOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [currentUser, setCurrentUser] = useState(initialFormState);
+  
   const [formErrors, setFormErrors] = useState([]);
-  const [users, setUsers] = useState(() => {
-    const saved = localStorage.getItem(`${tenant}_usersData`);
-    return saved ? JSON.parse(saved) : [
-      { id: 1, name: 'Chandra', role: 'Admin', branch: 'Main' },
-      { id: 2, name: 'Ravi', role: 'Salesperson', branch: 'Branch A' },
-    ];
-  });
+
+  // --- API Functions ---
+  const callApi = useCallback(async (url, options = {}) => {
+    const token = localStorage.getItem('token');
+    const response = await fetch(url, {
+      ...options,
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', ...options.headers },
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({ message: 'An unknown error occurred' }));
+      throw new Error(errData.message);
+    }
+    return response.status === 204 ? null : response.json();
+  }, []);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const [usersData, branchesData] = await Promise.all([
+        callApi('/api/users'),
+        callApi('/api/branches'),
+      ]);
+      setUsers(usersData);
+      setBranches(branchesData);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [callApi]);
 
   useEffect(() => {
-    localStorage.setItem(`${tenant}_usersData`, JSON.stringify(users));
-  }, [users, tenant]);
+    if (tenant) fetchData();
+  }, [tenant, fetchData]);
 
-  const handleAddOrEdit = async (form) => {
-    try {
-      await userSchema.validate(form, { abortEarly: false });
-      setFormErrors([]);
-      // ...proceed
-    } catch (err) {
-      setFormErrors(err.errors);
+  // --- Handlers ---
+  const handleOpen = (user = null) => {
+    setIsEditing(!!user);
+    setCurrentUser(user ? { id: user.id, name: user.name, email: user.email, password: '', role: user.role, branchId: user.branchId } : initialFormState);
+    setFormErrors([]);
+    setOpen(true);
+  };
+
+  const handleClose = () => setOpen(false);
+  const handleChange = e => setCurrentUser(u => ({ ...u, [e.target.name]: e.target.value }));
+
+  // --- THIS IS THE FIX ---
+  const handleSave = async () => {
+    const payload = { ...currentUser };
+
+    // When creating a new user, password is required.
+    if (!isEditing && !payload.password) {
+      setFormErrors(["Password is required for new users."]);
       return;
     }
-    // ...rest
+
+    // When editing, if the password field is empty, remove it from the payload
+    // so we don't overwrite the existing password with a blank one.
+    if (isEditing && !payload.password) {
+      delete payload.password;
+    }
+    
+    setFormErrors([]);
+    const method = isEditing ? 'PUT' : 'POST';
+    const url = isEditing ? `/api/users/${currentUser.id}` : '/api/users';
+
+    try {
+      await callApi(url, { method, body: JSON.stringify(payload) });
+      handleClose();
+      fetchData();
+    } catch (err) {
+      setFormErrors([err.message]);
+    }
   };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure? This will mark the user as deleted.')) return;
+    try {
+      await callApi(`/api/users/${id}`, { method: 'DELETE' });
+      fetchData();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  if (loading) return <CircularProgress />;
+  if (error) return <Alert severity="error">{error}</Alert>;
 
   return (
     <Box>
-      <Grid container alignItems="center" spacing={2} sx={{ mb: 2 }}>
-        <Grid size={{ xs: 12, sm: 6 }}>
-          <Typography variant="h4" gutterBottom>Users</Typography>
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6 }} sx={{ textAlign: { xs: 'left', sm: 'right' } }}>
-          <Button variant="contained">Add User</Button>
-        </Grid>
-      </Grid>
-      <Box sx={{ width: '100%', overflowX: 'auto' }}>
-        <Paper sx={{ minWidth: 600 }}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Name</TableCell>
-                <TableCell>Role</TableCell>
-                <TableCell>Branch</TableCell>
-                <TableCell>Status</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {users.map(user => (
-                <TableRow key={user.id}>
-                  <TableCell>{user.name}</TableCell>
-                  <TableCell>{user.role}</TableCell>
-                  <TableCell>{user.branch}</TableCell>
-                  <TableCell>
-                    <Chip label="Active" color="success" />
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Paper>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+        <Typography variant="h4">Users</Typography>
+        <Button variant="contained" onClick={() => handleOpen()}>Add User</Button>
       </Box>
-      {formErrors.length > 0 && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {formErrors.map((msg, idx) => <div key={idx}>{msg}</div>)}
-        </Alert>
-      )}
+      <Paper>
+        <Table>
+          <TableHead><TableRow>
+            <TableCell>Name</TableCell><TableCell>Email</TableCell><TableCell>Role</TableCell><TableCell>Branch</TableCell><TableCell>Actions</TableCell>
+          </TableRow></TableHead>
+          <TableBody>
+            {users.map(user => (
+              <TableRow key={user.id}>
+                <TableCell>{user.name}</TableCell>
+                <TableCell>{user.email}</TableCell>
+                <TableCell><Chip label={user.role} size="small" /></TableCell>
+                <TableCell>{user.branch?.name || 'N/A'}</TableCell>
+                <TableCell>
+                  <IconButton onClick={() => handleOpen(user)}><EditIcon /></IconButton>
+                  <IconButton onClick={() => handleDelete(user.id)} color="error"><DeleteIcon /></IconButton>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Paper>
+      
+      <Dialog open={open} onClose={handleClose}>
+        <DialogTitle>{isEditing ? 'Edit User' : 'Add User'}</DialogTitle>
+        <DialogContent>
+          {formErrors.length > 0 && <Alert severity="error" sx={{ mb: 2 }}>{formErrors.join(', ')}</Alert>}
+          <TextField margin="dense" label="Name" name="name" value={currentUser.name} onChange={handleChange} fullWidth autoFocus/>
+          <TextField margin="dense" label="Email" name="email" value={currentUser.email} onChange={handleChange} fullWidth/>
+          <TextField margin="dense" label="Password" name="password" type="password" value={currentUser.password} onChange={handleChange} placeholder={isEditing ? 'Leave blank to keep unchanged' : ''} fullWidth/>
+          <FormControl margin="dense" fullWidth>
+            <InputLabel>Role</InputLabel>
+            <Select label="Role" name="role" value={currentUser.role} onChange={handleChange}>
+              {roles.map(role => <MenuItem key={role} value={role}>{role}</MenuItem>)}
+            </Select>
+          </FormControl>
+          <FormControl margin="dense" fullWidth>
+            <InputLabel>Branch</InputLabel>
+            <Select label="Branch" name="branchId" value={currentUser.branchId} onChange={handleChange}>
+              {branches.map(branch => <MenuItem key={branch.id} value={branch.id}>{branch.name}</MenuItem>)}
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleClose}>Cancel</Button>
+          <Button onClick={handleSave} variant="contained">{isEditing ? 'Save' : 'Add'}</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

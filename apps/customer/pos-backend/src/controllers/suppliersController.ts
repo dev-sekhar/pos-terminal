@@ -1,56 +1,52 @@
 import { Request, Response, NextFunction } from 'express';
 import * as suppliersService from '../services/suppliersService';
 
+const getTenantId = (req: Request): string => {
+    const tenantId = req.tenant?.id;
+    if (!tenantId) throw new Error('Tenant ID is missing from the request session.');
+    return tenantId;
+};
+
+const getUserId = (req: Request): number => {
+    const userId = req.user?.id;
+    if (!userId) throw new Error('User ID is missing from the request session.');
+    return Number(userId);
+};
+
+// Corrected function name to match the router
 export const listSuppliers = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const tenantId = req.query.tenantId as string;
-    const suppliers = await suppliersService.listSuppliers(tenantId);
+    const tenantId = getTenantId(req);
+    // Calls the correct service function
+    const suppliers = await suppliersService.listSuppliersForTenant(tenantId);
     res.json(suppliers);
   } catch (err) {
     next(err);
   }
 };
 
+// Corrected function name to match the router
 export const createSupplier = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const tenantId = req.body.tenantId;
-    const createdById = req.body.createdById;
-    const supplier = await suppliersService.createSupplier(req.body, tenantId, createdById);
+    const tenantId = getTenantId(req);
+    const createdById = getUserId(req);
+    // Calls the correct "smart" service function
+    const supplier = await suppliersService.createOrLinkSupplier(req.body, tenantId, createdById);
     res.status(201).json(supplier);
   } catch (err) {
     next(err);
   }
 };
 
-export const getSupplierById = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const tenantId = req.query.tenantId as string;
-    const supplier = await suppliersService.getSupplierById(Number(req.params.id), tenantId);
-    if (!supplier) return res.status(404).json({ message: 'Supplier not found' });
-    res.json(supplier);
-  } catch (err) {
-    next(err);
-  }
-};
-
-export const updateSupplier = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const tenantId = req.body.tenantId;
-    const supplier = await suppliersService.updateSupplier(Number(req.params.id), req.body, tenantId);
-    if (!supplier) return res.status(404).json({ message: 'Supplier not found' });
-    res.json(supplier);
-  } catch (err) {
-    next(err);
-  }
-};
-
+// Corrected function name to match the router
 export const deleteSupplier = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const tenantId = req.query.tenantId as string;
-    const supplier = await suppliersService.deleteSupplier(Number(req.params.id), tenantId);
-    if (!supplier) return res.status(404).json({ message: 'Supplier not found' });
-    res.json({ message: 'Supplier deleted' });
+    const tenantId = getTenantId(req);
+    const supplierId = Number(req.params.id);
+    // Calls the correct service function to "unlink"
+    await suppliersService.unlinkSupplierFromTenant(supplierId, tenantId);
+    res.status(204).send();
   } catch (err) {
     next(err);
   }
-}; 
+};

@@ -1,141 +1,149 @@
-import { Box, Typography, Paper, Table, TableHead, TableRow, TableCell, TableBody, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, IconButton, Grid, Chip, Switch, FormControlLabel, Alert } from '@mui/material';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Box, Typography, Paper, Table, TableHead, TableRow, TableCell, TableBody, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, IconButton, FormControlLabel, Switch, Chip, Alert, CircularProgress } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
-import React, { useState, useEffect } from 'react';
-import supplierSchema from '../schemas/supplierSchema';
 import { useTenant } from '../context/TenantContext';
 
-const initialSuppliers = [
-  { id: 1, name: 'ABC Traders', contact: '1234567890', email: 'abc@traders.com', address: 'Main Street', userName: '', active: true, deleted: false },
-  { id: 2, name: 'XYZ Mart', contact: '9876543210', email: 'xyz@mart.com', address: 'Market Road', userName: '', active: true, deleted: false },
-];
+const initialFormState = { name: '', contact: '', email: '', address: '', active: true };
 
 const Suppliers = () => {
   const { tenant } = useTenant();
-  const [suppliers, setSuppliers] = useState(() => {
-    const saved = localStorage.getItem(`${tenant}_suppliersData`);
-    return saved ? JSON.parse(saved) : initialSuppliers;
-  });
+  const [suppliers, setSuppliers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  
   const [open, setOpen] = useState(false);
-  const [editId, setEditId] = useState(null);
-  const [form, setForm] = useState({ name: '', contact: '', email: '', address: '', userName: '', active: true });
+  // We remove isEditing as editing global suppliers is a separate feature
+  const [currentSupplier, setCurrentSupplier] = useState(initialFormState);
+  
   const [formErrors, setFormErrors] = useState([]);
 
+  const callApi = useCallback(async (url, options = {}) => {
+    const token = localStorage.getItem('token');
+    const response = await fetch(url, {
+      ...options,
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', ...options.headers },
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({ message: 'An unknown error occurred' }));
+      throw new Error(errData.message);
+    }
+    return response.status === 204 ? null : response.json();
+  }, []);
+
+  const fetchSuppliers = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const data = await callApi('/api/suppliers');
+      setSuppliers(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [callApi]);
+
   useEffect(() => {
-    localStorage.setItem(`${tenant}_suppliersData`, JSON.stringify(suppliers));
-  }, [suppliers, tenant]);
+    if (tenant) fetchSuppliers();
+  }, [tenant, fetchSuppliers]);
 
   const handleOpen = () => {
-    setForm({ name: '', contact: '', email: '', address: '', userName: '', active: true });
-    setEditId(null);
+    setCurrentSupplier(initialFormState);
+    setFormErrors([]);
     setOpen(true);
   };
+  
   const handleClose = () => setOpen(false);
 
   const handleChange = e => {
     const { name, value, type, checked } = e.target;
-    setForm(f => ({ ...f, [name]: type === 'checkbox' ? checked : value }));
+    setCurrentSupplier(s => ({ ...s, [name]: type === 'checkbox' ? checked : value }));
   };
 
-  const handleAddOrEdit = async () => {
-    try {
-      await supplierSchema.validate(form, { abortEarly: false });
-      setFormErrors([]);
-      if (editId) {
-        setSuppliers(suppliers.map(s => s.id === editId ? { ...s, ...form } : s));
-      } else {
-        setSuppliers([
-          ...suppliers,
-          { ...form, id: Date.now(), deleted: false }
-        ]);
-      }
-      setOpen(false);
-    } catch (err) {
-      setFormErrors(err.errors);
+  const handleSave = async () => {
+    if (!currentSupplier.name) {
+      setFormErrors(['Supplier Name is required.']);
       return;
+    }
+    setFormErrors([]);
+
+    try {
+      // The POST endpoint now handles the "create or link" logic automatically
+      await callApi('/api/suppliers', { method: 'POST', body: JSON.stringify(currentSupplier) });
+      handleClose();
+      fetchSuppliers();
+    } catch (err) {
+      setFormErrors([err.message]);
     }
   };
 
-  const handleEdit = (supplier) => {
-    setForm({ ...supplier });
-    setEditId(supplier.id);
-    setOpen(true);
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to remove this supplier from your list?')) return;
+    try {
+      // The DELETE endpoint now handles "unlinking"
+      await callApi(`/api/suppliers/${id}`, { method: 'DELETE' });
+      fetchSuppliers();
+    } catch (err) {
+      setError(err.message);
+    }
   };
-
-  const handleDelete = (id) => {
-    setSuppliers(suppliers.map(s => s.id === id ? { ...s, deleted: true } : s));
-  };
-
-  const filteredSuppliers = suppliers.filter(s => !s.deleted);
+  
+  if (loading) return <CircularProgress />;
+  if (error) return <Alert severity="error">{error}</Alert>;
 
   return (
     <Box>
-      <Grid container alignItems="center" spacing={2} sx={{ mb: 2 }}>
-        <Grid size={{ xs: 12, sm: 6 }}>
-          <Typography variant="h4" gutterBottom>Suppliers</Typography>
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6 }} sx={{ textAlign: { xs: 'left', sm: 'right' } }}>
-          <Button variant="contained" onClick={handleOpen}>Add Supplier</Button>
-        </Grid>
-      </Grid>
-      <Box sx={{ width: '100%', overflowX: 'auto' }}>
-        <Paper sx={{ minWidth: 600 }}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Name</TableCell>
-                <TableCell>Contact</TableCell>
-                <TableCell>Email</TableCell>
-                <TableCell>Address</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {filteredSuppliers.map(s => (
-                <TableRow key={s.id}>
-                  <TableCell>{s.name}</TableCell>
-                  <TableCell>{s.contact}</TableCell>
-                  <TableCell>{s.email}</TableCell>
-                  <TableCell>{s.address}</TableCell>
-                  <TableCell>
-                    {s.active ? <Chip label="Active" color="success" /> : <Chip label="Inactive" color="default" />}
-                  </TableCell>
-                  <TableCell>
-                    <IconButton onClick={() => handleEdit(s)} size="small"><EditIcon /></IconButton>
-                    <IconButton onClick={() => handleDelete(s.id)} size="small" color="error"><DeleteIcon /></IconButton>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Paper>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+        <Typography variant="h4">Suppliers</Typography>
+        <Button variant="contained" onClick={handleOpen}>Add Supplier</Button>
       </Box>
-      <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
-        <DialogTitle>{editId ? 'Edit Supplier' : 'Add Supplier'}</DialogTitle>
+      <Paper>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell>Name</TableCell><TableCell>Contact</TableCell><TableCell>Email</TableCell><TableCell>Status</TableCell><TableCell>Actions</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {suppliers.map(s => (
+              <TableRow key={s.id}>
+                <TableCell>{s.name}</TableCell>
+                <TableCell>{s.contact}</TableCell>
+                <TableCell>{s.email}</TableCell>
+                <TableCell>
+                  {s.active ? <Chip label="Active" color="success" /> : <Chip label="Inactive" color="default" />}
+                </TableCell>
+                <TableCell>
+                  {/* <IconButton title="Edit Supplier (Admin Feature)"><EditIcon /></IconButton> */}
+                  <IconButton onClick={() => handleDelete(s.id)} color="error" title="Remove Supplier"><DeleteIcon /></IconButton>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Paper>
+      
+      <Dialog open={open} onClose={handleClose}>
+        <DialogTitle>Add Supplier</DialogTitle>
         <DialogContent>
-          {formErrors.length > 0 && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {formErrors.map((msg, idx) => <div key={idx}>{msg}</div>)}
-            </Alert>
-          )}
-          <TextField margin="dense" label="Supplier Name" name="name" value={form.name} onChange={handleChange} fullWidth />
-          <TextField margin="dense" label="Contact" name="contact" value={form.contact} onChange={handleChange} fullWidth />
-          <TextField margin="dense" label="Email" name="email" value={form.email} onChange={handleChange} fullWidth />
-          <TextField margin="dense" label="Address" name="address" value={form.address} onChange={handleChange} fullWidth />
-          <TextField margin="dense" label="User Name" name="userName" value={form.userName} onChange={handleChange} fullWidth />
+          {formErrors.length > 0 && <Alert severity="error" sx={{ mb: 2 }}>{formErrors.join(', ')}</Alert>}
+          <TextField margin="dense" label="Supplier Name" name="name" value={currentSupplier.name} onChange={handleChange} fullWidth autoFocus />
+          <TextField margin="dense" label="Contact" name="contact" value={currentSupplier.contact} onChange={handleChange} fullWidth />
+          <TextField margin="dense" label="Email" name="email" value={currentSupplier.email} onChange={handleChange} fullWidth />
+          <TextField margin="dense" label="Address" name="address" value={currentSupplier.address} onChange={handleChange} fullWidth />
           <FormControlLabel
-            control={<Switch checked={form.active} onChange={handleChange} name="active" color="primary" />}
+            control={<Switch checked={currentSupplier.active} onChange={handleChange} name="active" />}
             label="Active"
           />
         </DialogContent>
         <DialogActions>
           <Button onClick={handleClose}>Cancel</Button>
-          <Button onClick={handleAddOrEdit} variant="contained">{editId ? 'Save' : 'Add'}</Button>
+          <Button onClick={handleSave} variant="contained">Add Supplier</Button>
         </DialogActions>
       </Dialog>
     </Box>
   );
 };
 
-export default Suppliers; 
+export default Suppliers;
