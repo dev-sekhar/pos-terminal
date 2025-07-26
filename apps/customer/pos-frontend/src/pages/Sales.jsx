@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  useMemo,
+} from "react";
 import {
   Box,
   Typography,
@@ -60,7 +66,6 @@ const calcTotal = (items, basketDiscount = 0) => {
   return Math.round((subtotal - discountAmt) * 100) / 100;
 };
 
-// --- BillPrint Inline Component ---
 const BillPrint = React.forwardRef(({ sale, settings }, ref) => {
   if (!sale || !settings) return null;
   return (
@@ -139,7 +144,7 @@ const Sales = () => {
     error: settingsError,
   } = useSettings();
   const [sales, setSales] = useState([]);
-  const [products, setProducts] = useState([]);
+  const [inventory, setInventory] = useState([]);
   const [branches, setBranches] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -177,15 +182,15 @@ const Sales = () => {
       setLoading(true);
       setError("");
       try {
-        const [salesData, productsData, branchesData, usersData] =
+        const [salesData, inventoryData, branchesData, usersData] =
           await Promise.all([
             callApi("/api/sales"),
-            callApi("/api/products"),
+            callApi("/api/inventory"),
             callApi("/api/branches"),
             callApi("/api/users"),
           ]);
         setSales(salesData || []);
-        setProducts(productsData || []);
+        setInventory(inventoryData || []);
         setBranches(branchesData || []);
         setUsers(usersData || []);
       } catch (err) {
@@ -196,6 +201,13 @@ const Sales = () => {
     };
     fetchData();
   }, [tenant, callApi]);
+
+  const availableProductsForSelectedBranch = useMemo(() => {
+    if (!form.branchId) return [];
+    return inventory
+      .filter((inv) => inv.branchId === form.branchId && inv.stock > 0)
+      .map((inv) => inv.product);
+  }, [form.branchId, inventory]);
 
   const handleOpen = async () => {
     try {
@@ -223,18 +235,32 @@ const Sales = () => {
     const newItems = [...form.items];
     const item = { ...newItems[idx] };
     if (field === "productId") {
-      const product = products.find((p) => p.id === value);
+      const invItem = inventory.find(
+        (inv) => inv.branchId === form.branchId && inv.productId === value
+      );
       item.productId = value;
-      item.price = product ? product.price : 0;
+      item.price = invItem ? invItem.product.price : 0;
       item.quantity = 1;
       item.discount = 0;
       item.tax = 0;
+    } else if (field === "quantity") {
+      const invItem = inventory.find(
+        (inv) =>
+          inv.branchId === form.branchId && inv.productId === item.productId
+      );
+      if (invItem && Number(value) > invItem.stock) {
+        alert(`Quantity cannot exceed available stock of ${invItem.stock}`);
+        item.quantity = invItem.stock;
+      } else {
+        item.quantity = Number(value);
+      }
     } else {
       item[field] = value;
     }
     newItems[idx] = item;
     setForm((f) => ({ ...f, items: newItems }));
   };
+
   const handleAddItem = () =>
     setForm((f) => ({
       ...f,
@@ -251,8 +277,12 @@ const Sales = () => {
         body: JSON.stringify(form),
       });
       handleClose();
-      const salesData = await callApi("/api/sales");
+      const [salesData, inventoryData] = await Promise.all([
+        callApi("/api/sales"),
+        callApi("/api/inventory"),
+      ]);
       setSales(salesData || []);
+      setInventory(inventoryData || []);
     } catch (err) {
       setFormErrors([err.message]);
     }
@@ -314,7 +344,6 @@ const Sales = () => {
         </Button>
       </Box>
 
-      {/* --- Sales Table --- */}
       <Paper>
         <Table>
           <TableHead>
@@ -409,7 +438,6 @@ const Sales = () => {
         <BillPrint ref={printWindowRef} sale={printSale} settings={settings} />
       </div>
 
-      {/* --- NEW SALE DIALOG --- */}
       <Dialog open={open} onClose={handleClose} fullWidth maxWidth="md">
         <DialogTitle>{isEditing ? "Edit Sale" : "New Sale"}</DialogTitle>
         <DialogContent>
@@ -419,70 +447,45 @@ const Sales = () => {
             </Alert>
           )}
 
-          {/* Invoice # on its own row, full width for good label visibility */}
-          <Grid container spacing={2} sx={{ mb: 1 }}>
-            <Grid item xs={12}>
+          {/* --- THIS IS THE CORRECTED LAYOUT --- */}
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={4}>
               <TextField
                 margin="dense"
                 label="Invoice #"
                 value={form.invoice}
                 fullWidth
                 InputProps={{ readOnly: true }}
-                inputProps={{ style: { fontWeight: "bold", fontSize: "1rem" } }}
               />
             </Grid>
-          </Grid>
-
-          {/* Branch and Salesperson fields dynamic width with accessible labels */}
-          <Grid container spacing={2} sx={{ mb: 2 }}>
             <Grid item xs={12} sm="auto" sx={{ minWidth: 200, flexGrow: 1 }}>
               <FormControl fullWidth margin="dense">
-                <InputLabel id="branch-label">Branch</InputLabel>
+                <InputLabel>Branch</InputLabel>
                 <Select
-                  labelId="branch-label"
-                  id="branch-select"
                   name="branchId"
                   value={form.branchId}
                   label="Branch"
                   onChange={handleChange}
-                  sx={{ minWidth: "150px", whiteSpace: "nowrap" }}
                 >
                   {branches.map((b) => (
-                    <MenuItem
-                      key={b.id}
-                      value={b.id}
-                      sx={{ whiteSpace: "normal" }}
-                    >
+                    <MenuItem key={b.id} value={b.id}>
                       {b.name}
                     </MenuItem>
                   ))}
                 </Select>
               </FormControl>
             </Grid>
-
-            <Grid
-              item
-              xs={12}
-              sm="auto"
-              sx={{ minWidth: 200, flexGrow: 1, ml: { sm: 2 } }}
-            >
+            <Grid item xs={12} sm="auto" sx={{ minWidth: 200, flexGrow: 1 }}>
               <FormControl fullWidth margin="dense">
-                <InputLabel id="user-label">Salesperson</InputLabel>
+                <InputLabel>Salesperson</InputLabel>
                 <Select
-                  labelId="user-label"
-                  id="user-select"
                   name="userId"
                   value={form.userId}
                   label="Salesperson"
                   onChange={handleChange}
-                  sx={{ minWidth: "150px", whiteSpace: "nowrap" }}
                 >
                   {users.map((u) => (
-                    <MenuItem
-                      key={u.id}
-                      value={u.id}
-                      sx={{ whiteSpace: "normal" }}
-                    >
+                    <MenuItem key={u.id} value={u.id}>
                       {u.name}
                     </MenuItem>
                   ))}
@@ -491,37 +494,33 @@ const Sales = () => {
             </Grid>
           </Grid>
 
-          {/* Items list, single-row layout with no clipping */}
-          <Box>
+          <Box sx={{ mt: 3 }}>
             <Typography variant="h6" mb={1}>
               Items
             </Typography>
+
             {form.items.map((item, idx) => (
               <Grid
                 container
                 spacing={1}
                 alignItems="center"
                 key={idx}
-                sx={{ mb: 1 }}
+                sx={{ mb: 1, flexWrap: "nowrap" }} // no wrapping
               >
-                <Grid item xs={6} sm={6} md={6} sx={{ minWidth: 200 }}>
+                {/* Product Selector */}
+                <Grid item sx={{ minWidth: 200, flexBasis: "20%" }}>
                   <FormControl fullWidth>
-                    <InputLabel id={`product-label-${idx}`}>Product</InputLabel>
+                    <InputLabel>Product</InputLabel>
                     <Select
-                      labelId={`product-label-${idx}`}
                       value={item.productId}
                       label="Product"
                       onChange={(e) =>
                         handleItemChange(idx, "productId", e.target.value)
                       }
-                      sx={{ whiteSpace: "normal" }}
+                      disabled={!form.branchId}
                     >
-                      {products.map((p) => (
-                        <MenuItem
-                          key={p.id}
-                          value={p.id}
-                          sx={{ whiteSpace: "normal" }}
-                        >
+                      {availableProductsForSelectedBranch.map((p) => (
+                        <MenuItem key={p.id} value={p.id}>
                           {p.name}
                         </MenuItem>
                       ))}
@@ -529,7 +528,8 @@ const Sales = () => {
                   </FormControl>
                 </Grid>
 
-                <Grid item xs={1.2} sm={1} md={0.9}>
+                {/* Qty */}
+                <Grid item sx={{ flexBasis: "8%" }}>
                   <TextField
                     label="Qty"
                     type="number"
@@ -538,11 +538,11 @@ const Sales = () => {
                       handleItemChange(idx, "quantity", e.target.value)
                     }
                     fullWidth
-                    inputProps={{ min: 1 }}
                   />
                 </Grid>
 
-                <Grid item xs={1.5} sm={1.2} md={1}>
+                {/* Discount */}
+                <Grid item sx={{ flexBasis: "8%" }}>
                   <TextField
                     label="Discount (%)"
                     type="number"
@@ -551,11 +551,11 @@ const Sales = () => {
                       handleItemChange(idx, "discount", e.target.value)
                     }
                     fullWidth
-                    inputProps={{ min: 0, max: 100 }}
                   />
                 </Grid>
 
-                <Grid item xs={1.5} sm={1.2} md={1}>
+                {/* Tax */}
+                <Grid item sx={{ flexBasis: "8%" }}>
                   <TextField
                     label="Tax (%)"
                     type="number"
@@ -564,76 +564,60 @@ const Sales = () => {
                       handleItemChange(idx, "tax", e.target.value)
                     }
                     fullWidth
-                    inputProps={{ min: 0, max: 100 }}
                   />
                 </Grid>
 
-                <Grid item xs={1.2} sm={1} md={0.9}>
-                  <TextField
-                    label="Price"
-                    type="number"
-                    value={item.price}
-                    onChange={(e) =>
-                      handleItemChange(idx, "price", e.target.value)
-                    }
-                    fullWidth
-                    inputProps={{ min: 0 }}
-                  />
-                </Grid>
-
-                <Grid item xs={1.8} sm={2} md={2.2}>
+                {/* Total */}
+                <Grid item sx={{ flexBasis: "12%" }}>
                   <Typography
-                    variant="subtitle1"
-                    sx={{ mt: 2, fontWeight: "bold" }}
+                    variant="body1"
                     align="center"
+                    sx={{ fontWeight: "bold" }}
                   >
                     {settings.currency} {calcItemTotal(item).toFixed(2)}
                   </Typography>
                 </Grid>
 
-                <Grid item xs={0.7} sm={0.6} md={0.6}>
+                {/* Remove Button */}
+                <Grid item sx={{ flexBasis: "6%", textAlign: "right" }}>
                   <IconButton
                     onClick={() => handleRemoveItem(idx)}
                     color="error"
-                    aria-label="remove item"
-                    size="large"
                   >
                     <RemoveIcon />
                   </IconButton>
                 </Grid>
               </Grid>
             ))}
+
+            {/* Add Item Button */}
             <Button
               startIcon={<AddIcon />}
               onClick={handleAddItem}
               sx={{ mt: 1 }}
+              disabled={!form.branchId}
             >
               Add Item
             </Button>
           </Box>
 
-          {/* Payment Type, Basket Discount, and Total equally spaced */}
           <Grid container spacing={2} alignItems="center" sx={{ mt: 2 }}>
-            <Grid item xs={12} sm={4}>
-              <Grid item xs={12} sm={4} sx={{ minWidth: 160 }}>
-                <FormControl fullWidth margin="dense" sx={{ minWidth: 160 }}>
-                  <InputLabel>Payment Type</InputLabel>
-                  <Select
-                    name="paymentType"
-                    value={form.paymentType}
-                    label="Payment Type"
-                    onChange={handleChange}
-                    displayEmpty
-                    inputProps={{ "aria-label": "Payment Type" }}
-                  >
-                    {settings.paymentTypes.map((type) => (
-                      <MenuItem value={type} key={type}>
-                        {type}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
+            <Grid item xs={12} sm={4} sx={{ minWidth: 160 }}>
+              <FormControl fullWidth margin="dense" sx={{ minWidth: 160 }}>
+                <InputLabel>Payment Type</InputLabel>
+                <Select
+                  name="paymentType"
+                  value={form.paymentType}
+                  label="Payment Type"
+                  onChange={handleChange}
+                >
+                  {settings.paymentTypes.map((type) => (
+                    <MenuItem value={type} key={type}>
+                      {type}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
             </Grid>
             <Grid item xs={12} sm={4}>
               <TextField
@@ -653,6 +637,7 @@ const Sales = () => {
             </Grid>
           </Grid>
         </DialogContent>
+        {/* --- END OF CORRECTED LAYOUT --- */}
 
         <DialogActions>
           <Button onClick={handleClose}>Cancel</Button>
