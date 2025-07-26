@@ -285,7 +285,7 @@ const Sales = () => {
         <DialogContent>
           {formErrors.length > 0 && <Alert severity="error" sx={{ mb: 2 }}>{formErrors.join(', ')}</Alert>}
 
-          {/* Invoice # on its own row to ensure full label visibility */}
+          {/* Invoice # on its own row, full width for good label visibility */}
           <Grid container spacing={2} sx={{ mb: 1 }}>
             <Grid item xs={12}>
               <TextField
@@ -299,14 +299,9 @@ const Sales = () => {
             </Grid>
           </Grid>
 
-          {/* Branch and Salesperson with dynamic width and proper labels */}
+          {/* Branch and Salesperson fields dynamic width with accessible labels */}
           <Grid container spacing={2} sx={{ mb: 2 }}>
-            <Grid 
-              item 
-              xs={12} 
-              sm="auto" 
-              sx={{ minWidth: 200, flexGrow: 1 }}
-            >
+            <Grid item xs={12} sm="auto" sx={{ minWidth: 200, flexGrow: 1 }}>
               <FormControl fullWidth margin="dense">
                 <InputLabel id="branch-label">Branch</InputLabel>
                 <Select
@@ -327,12 +322,7 @@ const Sales = () => {
               </FormControl>
             </Grid>
 
-            <Grid 
-              item 
-              xs={12} 
-              sm="auto" 
-              sx={{ minWidth: 200, flexGrow: 1, ml: { sm: 2 } }}
-            >
+            <Grid item xs={12} sm="auto" sx={{ minWidth: 200, flexGrow: 1, ml: { sm: 2 } }}>
               <FormControl fullWidth margin="dense">
                 <InputLabel id="user-label">Salesperson</InputLabel>
                 <Select
@@ -354,135 +344,130 @@ const Sales = () => {
             </Grid>
           </Grid>
 
-<Box>
-  <Typography variant="h6" mb={1}>Items</Typography>
-  {form.items.map((item, idx) => (
-    <Grid container spacing={1} alignItems="center" key={idx} sx={{ mb: 1 }}>
-      {/* Product field stays half width with minWidth */}
-      <Grid item xs={6} sm={6} md={6} sx={{ minWidth: 200 }}>
-        <FormControl fullWidth>
-          <InputLabel id={`product-label-${idx}`}>Product</InputLabel>
-          <Select
-            labelId={`product-label-${idx}`}
-            value={item.productId}
-            label="Product"
-            onChange={e => handleItemChange(idx, 'productId', e.target.value)}
-            sx={{ whiteSpace: 'normal' }}
-          >
-            {products.map(p => (
-              <MenuItem key={p.id} value={p.id} sx={{ whiteSpace: 'normal' }}>
-                {p.name}
-              </MenuItem>
+          {/* Items list, single-row layout with no clipping */}
+          <Box>
+            <Typography variant="h6" mb={1}>Items</Typography>
+            {form.items.map((item, idx) => (
+              <Grid container spacing={1} alignItems="center" key={idx} sx={{ mb: 1 }}>
+                <Grid item xs={6} sm={6} md={6} sx={{ minWidth: 200 }}>
+                  <FormControl fullWidth>
+                    <InputLabel id={`product-label-${idx}`}>Product</InputLabel>
+                    <Select
+                      labelId={`product-label-${idx}`}
+                      value={item.productId}
+                      label="Product"
+                      onChange={e => handleItemChange(idx, 'productId', e.target.value)}
+                      sx={{ whiteSpace: 'normal' }}
+                    >
+                      {products.map(p => (
+                        <MenuItem key={p.id} value={p.id} sx={{ whiteSpace: 'normal' }}>
+                          {p.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+
+                <Grid item xs={1.2} sm={1} md={0.9}>
+                  <TextField
+                    label="Qty"
+                    type="number"
+                    value={item.quantity}
+                    onChange={e => handleItemChange(idx, 'quantity', e.target.value)}
+                    fullWidth
+                    inputProps={{ min: 1 }}
+                  />
+                </Grid>
+
+                <Grid item xs={1.5} sm={1.2} md={1}>
+                  <TextField
+                    label="Discount (%)"
+                    type="number"
+                    value={item.discount}
+                    onChange={e => handleItemChange(idx, 'discount', e.target.value)}
+                    fullWidth
+                    inputProps={{ min: 0, max: 100 }}
+                  />
+                </Grid>
+
+                <Grid item xs={1.5} sm={1.2} md={1}>
+                  <TextField
+                    label="Tax (%)"
+                    type="number"
+                    value={item.tax}
+                    onChange={e => handleItemChange(idx, 'tax', e.target.value)}
+                    fullWidth
+                    inputProps={{ min: 0, max: 100 }}
+                  />
+                </Grid>
+
+                <Grid item xs={1.2} sm={1} md={0.9}>
+                  <TextField
+                    label="Price"
+                    type="number"
+                    value={item.price}
+                    onChange={e => handleItemChange(idx, 'price', e.target.value)}
+                    fullWidth
+                    inputProps={{ min: 0 }}
+                  />
+                </Grid>
+
+                <Grid item xs={1.8} sm={2} md={2.2}>
+                  <Typography variant="subtitle1" sx={{ mt: 2, fontWeight: 'bold' }} align="center">
+                    {settings.currency} {calcItemTotal(item).toFixed(2)}
+                  </Typography>
+                </Grid>
+
+                <Grid item xs={0.7} sm={0.6} md={0.6}>
+                  <IconButton onClick={() => handleRemoveItem(idx)} color="error" aria-label="remove item" size="large">
+                    <RemoveIcon />
+                  </IconButton>
+                </Grid>
+              </Grid>
             ))}
-          </Select>
-        </FormControl>
-      </Grid>
+            <Button startIcon={<AddIcon />} onClick={handleAddItem} sx={{ mt: 1 }}>
+              Add Item
+            </Button>
+          </Box>
 
-      {/* Quantity - reduced width */}
-      <Grid item xs={1.2} sm={1} md={0.9}>
-        <TextField
-          label="Qty"
-          type="number"
-          value={item.quantity}
-          onChange={e => handleItemChange(idx, 'quantity', e.target.value)}
-          fullWidth
-          inputProps={{ min: 1 }}
-        />
-      </Grid>
-
-      {/* Discount */}
-      <Grid item xs={1.5} sm={1.2} md={1}>
-        <TextField
-          label="Discount (%)"
-          type="number"
-          value={item.discount}
-          onChange={e => handleItemChange(idx, 'discount', e.target.value)}
-          fullWidth
-          inputProps={{ min: 0, max: 100 }}
-        />
-      </Grid>
-
-      {/* Tax */}
-      <Grid item xs={1.5} sm={1.2} md={1}>
-        <TextField
-          label="Tax (%)"
-          type="number"
-          value={item.tax}
-          onChange={e => handleItemChange(idx, 'tax', e.target.value)}
-          fullWidth
-          inputProps={{ min: 0, max: 100 }}
-        />
-      </Grid>
-
-      {/* Price - reduced width */}
-      <Grid item xs={1.2} sm={1} md={0.9}>
-        <TextField
-          label="Price"
-          type="number"
-          value={item.price}
-          onChange={e => handleItemChange(idx, 'price', e.target.value)}
-          fullWidth
-          inputProps={{ min: 0 }}
-        />
-      </Grid>
-
-      {/* Total (net price) - increased width to accommodate */}
-      <Grid item xs={1.8} sm={2} md={2.2}>
-        <Typography variant="subtitle1" sx={{ mt: 2, fontWeight: 'bold' }} align="center">
-          {settings.currency} {calcItemTotal(item).toFixed(2)}
-        </Typography>
-      </Grid>
-
-      {/* Remove Button */}
-      <Grid item xs={0.7} sm={0.6} md={0.6}>
-        <IconButton onClick={() => handleRemoveItem(idx)} color="error" aria-label="remove item" size="large">
-          <RemoveIcon />
-        </IconButton>
-      </Grid>
-    </Grid>
-  ))}
-  <Button startIcon={<AddIcon />} onClick={handleAddItem} sx={{ mt: 1 }}>
-    Add Item
-  </Button>
-</Box>
-
-
-
-
-          {/* Payment type, Discount, and Total on the next grid row */}
-<Grid container spacing={2} alignItems="center" sx={{ mt: 2 }}>
-  <Grid item xs={12} sm={4}>
-    <FormControl fullWidth margin="dense">
-      <InputLabel>Payment Type</InputLabel>
-      <Select
-        name="paymentType"
-        value={form.paymentType}
-        label="Payment Type"
-        onChange={handleChange}
-      >
-        {settings.paymentTypes.map(type => (
-          <MenuItem value={type} key={type}>{type}</MenuItem>
-        ))}
-      </Select>
-    </FormControl>
-  </Grid>
-  <Grid item xs={12} sm={4}>
-    <TextField
-      label="Basket Discount (%)"
-      name="discount"
-      value={form.discount}
+          {/* Payment Type, Basket Discount, and Total equally spaced */}
+          <Grid container spacing={2} alignItems="center" sx={{ mt: 2 }}>
+            <Grid item xs={12} sm={4}>
+<Grid item xs={12} sm={4} sx={{ minWidth: 160 }}>
+  <FormControl fullWidth margin="dense" sx={{ minWidth: 160 }}>
+    <InputLabel>Payment Type</InputLabel>
+    <Select
+      name="paymentType"
+      value={form.paymentType}
+      label="Payment Type"
       onChange={handleChange}
-      type="number"
-      fullWidth
-    />
-  </Grid>
-  <Grid item xs={12} sm={4} sx={{ textAlign: 'right' }}>
-    <Typography variant="h6">
-      Total: {settings.currency} {calcTotal(form.items, form.discount).toFixed(2)}
-    </Typography>
-  </Grid>
+      displayEmpty
+      inputProps={{ 'aria-label': 'Payment Type' }}
+    >
+      {settings.paymentTypes.map(type => (
+        <MenuItem value={type} key={type}>{type}</MenuItem>
+      ))}
+    </Select>
+  </FormControl>
 </Grid>
 
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                label="Basket Discount (%)"
+                name="discount"
+                value={form.discount}
+                onChange={handleChange}
+                type="number"
+                fullWidth
+              />
+            </Grid>
+            <Grid item xs={12} sm={4} sx={{ textAlign: 'right' }}>
+              <Typography variant="h6">
+                Total: {settings.currency} {calcTotal(form.items, form.discount).toFixed(2)}
+              </Typography>
+            </Grid>
+          </Grid>
         </DialogContent>
 
         <DialogActions>
