@@ -1,16 +1,44 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Box, Typography, Paper, Table, TableHead, TableRow, TableCell, TableBody, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, InputLabel, FormControl, Select, MenuItem, IconButton, Grid, Collapse, Alert, CircularProgress, Chip } from '@mui/material';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Box, Typography, Paper, Table, TableHead, TableRow, TableCell, TableBody, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, InputLabel, FormControl, Select, MenuItem, IconButton, Grid, Collapse, Alert, CircularProgress } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
+import PrintIcon from '@mui/icons-material/Print';
 import { useTenant } from '../context/TenantContext';
+import { useSettings } from '../context/SettingsContext';
 
 const initialFormState = { poNumber: '', datetime: '', supplierId: '', branchId: '', items: [] };
 
+const POPrint = React.forwardRef(({ purchase, settings }, ref) => {
+    if (!purchase || !settings) return null;
+    return (
+      <div ref={ref} style={{ fontFamily: 'sans-serif', width: '80mm', padding: '2mm' }}>
+        <h3 style={{ textAlign: 'center', margin: 0 }}>Purchase Order</h3>
+        <p style={{ fontSize: '10px', textAlign: 'center' }}>{purchase.tenant?.name || 'Your Company'}</p>
+        <hr />
+        <p style={{ fontSize: '12px' }}><strong>PO #:</strong> {purchase.poNumber}</p>
+        <p style={{ fontSize: '12px' }}><strong>Date:</strong> {new Date(purchase.datetime).toLocaleDateString()}</p>
+        <p style={{ fontSize: '12px' }}><strong>Supplier:</strong> {purchase.supplier?.name || 'N/A'}</p>
+        <p style={{ fontSize: '12px' }}><strong>Branch:</strong> {purchase.branch?.name || 'N/A'}</p>
+        <hr />
+        <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse' }}>
+          <thead><tr><th align="left">Item</th><th align="right">Qty</th></tr></thead>
+          <tbody>
+            {purchase.items.map(item => (
+              <tr key={item.id}><td>{item.product.name}</td><td align="right">{item.quantity}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+});
+
 const Purchases = () => {
   const { tenant } = useTenant();
+  const { settings, loading: settingsLoading, error: settingsError } = useSettings();
+
   const [purchases, setPurchases] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [products, setProducts] = useState([]);
@@ -22,12 +50,15 @@ const Purchases = () => {
   const [form, setForm] = useState(initialFormState);
   const [formErrors, setFormErrors] = useState([]);
   const [expanded, setExpanded] = useState({});
+  const [printPO, setPrintPO] = useState(null);
+  const printWindowRef = useRef(null);
 
   const callApi = useCallback(async (url, options = {}) => {
     const token = localStorage.getItem('token');
+    if (!token) throw new Error("No token found");
     const response = await fetch(url, {
       ...options,
-      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', ...options.headers },
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
     });
     if (!response.ok) {
       const errData = await response.json().catch(() => ({ message: 'An unknown error occurred' }));
@@ -36,30 +67,27 @@ const Purchases = () => {
     return response.status === 204 ? null : response.json();
   }, []);
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const [purchasesData, suppliersData, productsData, branchesData] = await Promise.all([
-        callApi('/api/purchases'),
-        callApi('/api/suppliers'),
-        callApi('/api/products'),
-        callApi('/api/branches'),
-      ]);
-      setPurchases(purchasesData);
-      setSuppliers(suppliersData);
-      setProducts(productsData);
-      setBranches(branchesData);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [callApi]);
-
   useEffect(() => {
-    if (tenant) fetchData();
-  }, [tenant, fetchData]);
+    const fetchData = async () => {
+      if (!tenant) return;
+      setLoading(true);
+      setError('');
+      try {
+        const [purchasesData, suppliersData, productsData, branchesData] = await Promise.all([
+          callApi('/api/purchases'), callApi('/api/suppliers'), callApi('/api/products'), callApi('/api/branches'),
+        ]);
+        setPurchases(purchasesData || []);
+        setSuppliers(suppliersData || []);
+        setProducts(productsData || []);
+        setBranches(branchesData || []);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [tenant, callApi]);
 
   const handleOpen = async () => {
     try {
@@ -79,7 +107,6 @@ const Purchases = () => {
   const handleItemChange = (idx, field, value) => {
     const newItems = [...form.items];
     const item = { ...newItems[idx] };
-    
     if (field === 'productId') {
         item.productId = value;
         item.quantity = 1;
@@ -96,21 +123,22 @@ const Purchases = () => {
   const handleSave = async () => {
     setFormErrors([]);
     const payload = { ...form, items: form.items.map(({productId, quantity}) => ({productId, quantity: Number(quantity)})) };
-
     try {
       await callApi('/api/purchases', { method: 'POST', body: JSON.stringify(payload) });
       handleClose();
-      fetchData();
+      const purchasesData = await callApi('/api/purchases');
+      setPurchases(purchasesData || []);
     } catch (err) {
       setFormErrors([err.message]);
     }
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this purchase order?')) return;
+    if (!window.confirm('Are you sure?')) return;
     try {
       await callApi(`/api/purchases/${id}`, { method: 'DELETE' });
-      fetchData();
+      const purchasesData = await callApi('/api/purchases');
+      setPurchases(purchasesData || []);
     } catch (err) {
       setError(err.message);
     }
@@ -118,8 +146,23 @@ const Purchases = () => {
   
   const handleExpandClick = id => setExpanded(exp => ({ ...exp, [id]: !exp[id] }));
 
-  if (loading) return <CircularProgress />;
-  if (error) return <Alert severity="error">{error}</Alert>;
+  const handlePrint = (purchaseToPrint) => {
+    setPrintPO(purchaseToPrint);
+    setTimeout(() => {
+      if (printWindowRef.current) {
+        const printContents = printWindowRef.current.innerHTML;
+        const printWindow = window.open('', '', 'width=400,height=600');
+        printWindow.document.write(printContents);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => { printWindow.print(); printWindow.close(); setPrintPO(null); }, 300);
+      }
+    }, 100);
+  };
+
+  if (loading || settingsLoading) return <CircularProgress />;
+  if (error || settingsError) return <Alert severity="error">{error || settingsError}</Alert>;
+  if (!settings) return <Alert severity="warning">Could not load tenant settings.</Alert>;
 
   return (
     <Box>
@@ -140,22 +183,22 @@ const Purchases = () => {
                 <TableCell>{new Date(p.datetime).toLocaleString()}</TableCell>
                 <TableCell>{p.poNumber}</TableCell>
                 <TableCell>{p.supplier?.name || 'N/A'}</TableCell>
-                <TableCell>{p.total.toFixed(2)}</TableCell>
+                <TableCell>{settings.currency} {p.total.toFixed(2)}</TableCell>
                 <TableCell>
-                  <IconButton onClick={() => handleDelete(p.id)} color="error"><DeleteIcon /></IconButton>
+                  <IconButton onClick={() => handlePrint(p)} size="small" title="Print PO"><PrintIcon /></IconButton>
+                  <IconButton onClick={() => handleDelete(p.id)} color="error" size="small"><DeleteIcon /></IconButton>
                 </TableCell>
               </TableRow>
               <TableRow><TableCell style={{ padding: 0 }} colSpan={6}><Collapse in={expanded[p.id]} timeout="auto" unmountOnExit>
                 <Box m={2}>
-                  <Typography variant="h6">Items</Typography>
                   <Table size="small">
                     <TableHead><TableRow><TableCell>Product</TableCell><TableCell>Quantity</TableCell><TableCell>Price</TableCell><TableCell>Total</TableCell></TableRow></TableHead>
                     <TableBody>{p.items.map(item => (
                       <TableRow key={item.id}>
                         <TableCell>{item.product.name}</TableCell>
                         <TableCell>{item.quantity}</TableCell>
-                        <TableCell>{(item.price || 0).toFixed(2)}</TableCell>
-                        <TableCell>{(item.quantity * (item.price || 0)).toFixed(2)}</TableCell>
+                        <TableCell>{settings.currency} {(item.price || 0).toFixed(2)}</TableCell>
+                        <TableCell>{settings.currency} {(item.quantity * (item.price || 0)).toFixed(2)}</TableCell>
                       </TableRow>
                     ))}</TableBody>
                   </Table>
@@ -166,6 +209,10 @@ const Purchases = () => {
         </Table>
       </Paper>
       
+      <div style={{ display: 'none' }}>
+        <POPrint ref={printWindowRef} purchase={printPO} settings={settings} />
+      </div>
+
       <Dialog open={open} onClose={handleClose} fullWidth>
         <DialogTitle>New Purchase Order</DialogTitle>
         <DialogContent>

@@ -20,6 +20,7 @@ import registerTenantRoutes from './routes/registerTenant';
 import authMiddleware from './middleware/authMiddleware';
 import tenantMiddleware from './middleware/tenantMiddleware';
 import dashboardRoutes from './routes/dashboard';
+import settingsRoutes from './routes/settings';
 
 // --- INITIALIZE APP ---
 dotenv.config();
@@ -59,7 +60,8 @@ app.use('/api/sales', protectedMiddleware, salesRoutes);
 app.use('/api/suppliers', protectedMiddleware, supplierRoutes);
 app.use('/api/purchases', protectedMiddleware, purchaseRoutes);
 app.use('/api/tenants', protectedMiddleware, tenantsRoutes);
-app.use('/api/dashboard', protectedMiddleware, dashboardRoutes); // <-- ADD THIS LINE
+app.use('/api/dashboard', protectedMiddleware, dashboardRoutes);
+app.use('/api/settings', protectedMiddleware, settingsRoutes);
 
 
 

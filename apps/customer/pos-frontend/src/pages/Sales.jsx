@@ -1,470 +1,493 @@
-import { Box, Typography, Paper, Table, TableHead, TableRow, TableCell, TableBody, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, InputLabel, FormControl, Select, MenuItem, IconButton, Grid, Collapse, Alert } from '@mui/material';
-import EditIcon from '@mui/icons-material/Edit';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import {
+  Box, Typography, Paper, Table, TableHead, TableRow, TableCell, TableBody, Button,
+  Dialog, DialogTitle, DialogContent, DialogActions, TextField, InputLabel, FormControl,
+  Select, MenuItem, IconButton, Grid, Collapse, Alert, CircularProgress
+} from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
-import React, { useState, useEffect, useRef } from 'react';
-import { useBranch } from '../context/BranchContext';
-import { useTenant } from '../context/TenantContext';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import PrintIcon from '@mui/icons-material/Print';
-import salesSchema from '../schemas/salesSchema';
-import saleItemSchema from '../schemas/saleItemSchema';
+import { useTenant } from '../context/TenantContext';
+import { useSettings } from '../context/SettingsContext';
 
-const initialSales = [
-  { id: 1, date: '2025-07-18', invoice: 'S001', items: [
-    { productId: 1, name: 'Rice 1kg', qty: 2, price: 50 },
-    { productId: 2, name: 'Oil 1L', qty: 1, price: 120 }
-  ], branch: 'Main', deleted: false },
-  { id: 2, date: '2025-07-17', invoice: 'S002', items: [
-    { productId: 3, name: 'Sugar 1kg', qty: 5, price: 60 }
-  ], branch: 'Branch A', deleted: false },
-];
+const initialFormState = { invoice: '', datetime: '', branchId: '', userId: '', paymentType: '', discount: 0, items: [] };
 
-const getProducts = (branch) => {
-  const saved = localStorage.getItem('productsData');
-  const all = saved ? JSON.parse(saved) : [];
-  return all.filter(p => p.branch === branch && !p.deleted);
+const calcItemTotal = (item) => {
+  if (!item) return 0;
+  const base = (item.quantity || 0) * (item.price || 0);
+  const discount = base * (Number(item.discount || 0) / 100);
+  const taxed = (base - discount) * (1 + Number(item.tax || 0) / 100);
+  return Math.round(taxed * 100) / 100;
+};
+const calcSubtotal = (items) => Array.isArray(items) ? items.reduce((sum, item) => sum + calcItemTotal(item), 0) : 0;
+const calcTotal = (items, basketDiscount = 0) => {
+  const subtotal = calcSubtotal(items);
+  const discountAmt = subtotal * (Number(basketDiscount) / 100);
+  return Math.round((subtotal - discountAmt) * 100) / 100;
 };
 
-const BillPrint = React.forwardRef(({ sale, calcSubtotal, calcTotal, currency }, ref) => (
-  <div ref={ref} style={{ fontFamily: 'monospace', width: 350, margin: '0 auto', padding: 16 }}>
-    <h2 style={{ textAlign: 'center', margin: 0 }}>POS Terminal</h2>
-    <div style={{ textAlign: 'center', fontSize: 12, marginBottom: 8 }}>Thank you for your purchase!</div>
-    <div style={{ fontSize: 13, marginBottom: 8 }}>
-      <div><strong>Invoice:</strong> {sale.invoice}</div>
-      <div><strong>Date/Time:</strong> {sale.datetime}</div>
-      <div><strong>Payment Type:</strong> {sale.paymentType}</div>
-    </div>
-    <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse', marginBottom: 8 }}>
-      <thead>
-        <tr>
-          <th align="left">Item</th>
-          <th align="right">Qty</th>
-          <th align="right">Price</th>
-          <th align="right">Total</th>
-        </tr>
-      </thead>
-      <tbody>
-        {Array.isArray(sale.items) && sale.items.map((item, idx) => (
-          <tr key={idx}>
-            <td>{item.name}</td>
-            <td align="right">{item.qty}</td>
-            <td align="right">{currency} {item.price}</td>
-            <td align="right">{currency} {((item.qty * item.price) * (1 - (item.discount || 0) / 100) * (1 + (item.tax || 0) / 100)).toFixed(2)}</td>
+// --- BillPrint Inline Component ---
+const BillPrint = React.forwardRef(({ sale, settings }, ref) => {
+  if (!sale || !settings) return null;
+  return (
+    <div ref={ref} style={{ fontFamily: 'monospace', width: 350, margin: '0 auto', padding: 16 }}>
+      <h2 style={{ textAlign: 'center', margin: 0 }}>POS Terminal</h2>
+      <div style={{ fontSize: 13, marginBottom: 8 }}>
+        <div><strong>Invoice:</strong> {sale.invoice}</div>
+        <div><strong>Date/Time:</strong> {new Date(sale.datetime).toLocaleString()}</div>
+        <div><strong>Payment:</strong> {sale.paymentType}</div>
+      </div>
+      <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse', marginBottom: 8 }}>
+        <thead>
+          <tr>
+            <th align="left">Item</th>
+            <th align="right">Qty</th>
+            <th align="right">Price</th>
+            <th align="right">Total</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
-    <div style={{ borderTop: '1px dashed #888', margin: '8px 0' }}></div>
-    <div style={{ fontSize: 13 }}>
-      <div><strong>Subtotal:</strong> {currency} {calcSubtotal(sale.items)}</div>
-      <div><strong>Basket Discount:</strong> {sale.discount || 0}%</div>
-      <div><strong>Total:</strong> {currency} {calcTotal(sale.items, sale.discount)}</div>
+        </thead>
+        <tbody>
+          {Array.isArray(sale.items) && sale.items.map((item, idx) => (
+            <tr key={idx}>
+              <td>{item.product?.name || 'N/A'}</td>
+              <td align="right">{item.quantity}</td>
+              <td align="right">{item.price.toFixed(2)}</td>
+              <td align="right">{calcItemTotal(item).toFixed(2)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div style={{ borderTop: '1px dashed #888', margin: '8px 0' }}></div>
+      <div style={{ fontSize: 13, textAlign: 'right' }}>
+        <div><strong>Subtotal:</strong> {settings.currency} {calcSubtotal(sale.items).toFixed(2)}</div>
+        <div><strong>Discount:</strong> {sale.discount || 0}%</div>
+        <div><strong>Total:</strong> {settings.currency} {calcTotal(sale.items, sale.discount).toFixed(2)}</div>
+      </div>
     </div>
-    <div style={{ textAlign: 'center', fontSize: 11, marginTop: 12 }}>
-      Powered by POS Terminal
-    </div>
-  </div>
-));
+  );
+});
 
 const Sales = () => {
-  const { branch, branches } = useBranch();
   const { tenant } = useTenant();
-  const [sales, setSales] = useState(() => {
-    const saved = localStorage.getItem(`${tenant}_salesData`);
-    return saved ? JSON.parse(saved) : initialSales;
-  });
+  const { settings, loading: settingsLoading, error: settingsError } = useSettings();
+  const [sales, setSales] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [branches, setBranches] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [open, setOpen] = useState(false);
-  const [editId, setEditId] = useState(null);
-  const [form, setForm] = useState({ datetime: '', invoice: '', salesperson: '', items: [], branch, discount: 0, paymentType: '' });
-  const [products, setProducts] = useState(getProducts(branch));
-  const [expanded, setExpanded] = useState({});
-  const [currency, setCurrency] = useState('USD');
-  const [searchInvoice, setSearchInvoice] = useState('');
-  const [searchDate, setSearchDate] = useState('');
-  const [paymentTypes, setPaymentTypes] = useState(() => {
-    const saved = localStorage.getItem('paymentTypesList');
-    return saved ? JSON.parse(saved) : ['Cash', 'Card', 'UPI'];
-  });
+  const [isEditing, setIsEditing] = useState(false);
+  const [form, setForm] = useState(initialFormState);
   const [formErrors, setFormErrors] = useState([]);
-  useEffect(() => {
-    const savedCurrency = localStorage.getItem('defaultCurrency');
-    setCurrency(savedCurrency || 'USD');
+  const [expanded, setExpanded] = useState({});
+  const [printSale, setPrintSale] = useState(null);
+  const printWindowRef = useRef(null);
+
+  const callApi = useCallback(async (url, options = {}) => {
+    const token = localStorage.getItem('token');
+    if (!token) throw new Error("No token found");
+    const response = await fetch(url, {
+      ...options,
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({ message: 'An unknown error occurred' }));
+      throw new Error(errData.message);
+    }
+    return response.status === 204 ? null : response.json();
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(`${tenant}_salesData`, JSON.stringify(sales));
-  }, [sales, tenant]);
-
-  useEffect(() => {
-    setProducts(getProducts(branch));
-  }, [branch]);
-
-  const handleOpen = () => {
-    const now = new Date();
-    const datetimeStr = now.toISOString().slice(0, 16).replace('T', ' ');
-    // Generate invoice number: S + yyyymmdd + - + next number for the day
-    const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
-    const todaySales = sales.filter(s => s.datetime && s.datetime.startsWith(now.toISOString().slice(0, 10)));
-    let nextNum = 1;
-    while (todaySales.some(s => s.invoice === `S${datePart}-${String(nextNum).padStart(3, '0')}`)) {
-      nextNum++;
-    }
-    const invoice = `S${datePart}-${String(nextNum).padStart(3, '0')}`;
-    setForm({ datetime: datetimeStr, invoice, salesperson: '', items: [], branch, discount: 0, paymentType: paymentTypes[0] || '' });
-    setEditId(null);
-    setOpen(true);
-  };
-  const handleClose = () => setOpen(false);
-
-  const handleChange = e => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
-
-  const handleAddOrEdit = async () => {
-    try {
-      await salesSchema.validate(form, { abortEarly: false });
-      setFormErrors([]);
-      const now = new Date();
-      const datetimeStr = now.toISOString().slice(0, 16).replace('T', ' ');
-      // Generate invoice number as above
-      const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
-      const todaySales = sales.filter(s => s.datetime && s.datetime.startsWith(now.toISOString().slice(0, 10)));
-      let nextNum = 1;
-      while (todaySales.some(s => s.invoice === `S${datePart}-${String(nextNum).padStart(3, '0')}`)) {
-        nextNum++;
-      }
-      const invoice = `S${datePart}-${String(nextNum).padStart(3, '0')}`;
-      let newForm = { ...form, datetime: datetimeStr, invoice };
-      if (!newForm.paymentType) newForm.paymentType = paymentTypes[0] || '';
-      if (editId) {
-        setSales(sales.map(s => s.id === editId ? { ...s, ...newForm } : s));
-      } else {
-        setSales([
-          ...sales,
-          { ...newForm, id: Date.now() }
+    const fetchData = async () => {
+      if (!tenant) return;
+      setLoading(true);
+      setError('');
+      try {
+        const [salesData, productsData, branchesData, usersData] = await Promise.all([
+          callApi('/api/sales'), callApi('/api/products'), callApi('/api/branches'), callApi('/api/users'),
         ]);
+        setSales(salesData || []);
+        setProducts(productsData || []);
+        setBranches(branchesData || []);
+        setUsers(usersData || []);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
       }
-      setOpen(false);
+    };
+    fetchData();
+  }, [tenant, callApi]);
+
+  const handleOpen = async () => {
+    try {
+      const { invoice } = await callApi('/api/sales/utils/new-invoice');
+      const datetime = new Date().toISOString().slice(0, 16);
+      setForm({ ...initialFormState, invoice, datetime, paymentType: settings?.paymentTypes[0] || '' });
+      setFormErrors([]);
+      setIsEditing(false);
+      setOpen(true);
     } catch (err) {
-      setFormErrors(err.errors);
-      return;
+      setError('Failed to generate a new invoice number.');
     }
   };
 
-  const handleEdit = (sale) => {
-    setForm({ ...sale });
-    setEditId(sale.id);
-    setOpen(true);
-  };
+  const handleClose = () => setOpen(false);
+  const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value });
 
-  const handleDelete = (id) => {
-    setSales(sales.map(s => s.id === id ? { ...s, deleted: true } : s));
-  };
-
-  // Item management for dialog
   const handleItemChange = (idx, field, value) => {
-    setForm(f => {
-      const items = [...f.items];
-      if (field === 'productId') {
-        const prod = products.find(p => p.id === Number(value));
-        items[idx] = { ...items[idx], productId: prod.id, name: prod.name, price: prod.price, qty: 1, discount: 0, tax: 0 };
-      } else if (field === 'qty') {
-        items[idx] = { ...items[idx], qty: Number(value) };
-      } else if (field === 'discount') {
-        items[idx] = { ...items[idx], discount: Number(value) };
-      } else if (field === 'tax') {
-        items[idx] = { ...items[idx], tax: Number(value) };
-      }
-      return { ...f, items };
-    });
+    const newItems = [...form.items];
+    const item = { ...newItems[idx] };
+    if (field === 'productId') {
+      const product = products.find(p => p.id === value);
+      item.productId = value;
+      item.price = product ? product.price : 0;
+      item.quantity = 1;
+      item.discount = 0;
+      item.tax = 0;
+    } else {
+      item[field] = value;
+    }
+    newItems[idx] = item;
+    setForm(f => ({ ...f, items: newItems }));
   };
-  const handleAddItem = () => {
-    setForm(f => ({ ...f, items: [...f.items, { productId: '', name: '', qty: 1, price: 0, discount: 0, tax: 0 }] }));
-  };
-  const handleRemoveItem = (idx) => {
-    setForm(f => ({ ...f, items: f.items.filter((_, i) => i !== idx) }));
+  const handleAddItem = () => setForm(f => ({ ...f, items: [...f.items, { productId: '', quantity: 1, discount: 0, tax: 0 }] }));
+  const handleRemoveItem = idx => setForm(f => ({ ...f, items: f.items.filter((_, i) => i !== idx) }));
+
+  const handleSave = async () => {
+    setFormErrors([]);
+    try {
+      await callApi('/api/sales', { method: 'POST', body: JSON.stringify(form) });
+      handleClose();
+      const salesData = await callApi('/api/sales');
+      setSales(salesData || []);
+    } catch (err) {
+      setFormErrors([err.message]);
+    }
   };
 
-  const handleExpandClick = (id) => {
-    setExpanded(exp => ({ ...exp, [id]: !exp[id] }));
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure?')) return;
+    try {
+      await callApi(`/api/sales/${id}`, { method: 'DELETE' });
+      const salesData = await callApi('/api/sales');
+      setSales(salesData || []);
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
-  // Calculate totals
-  const calcItemTotal = (item) => {
-    if (!item) return 0;
-    const base = (item.qty || 0) * (item.price || 0);
-    const discount = base * (Number(item.discount) / 100);
-    const taxed = (base - discount) * (1 + Number(item.tax) / 100);
-    return Math.round(taxed * 100) / 100;
-  };
-  const calcSubtotal = (items) => Array.isArray(items) ? items.reduce((sum, item) => sum + calcItemTotal(item), 0) : 0;
-  const calcTotal = (items, basketDiscount = 0) => {
-    const subtotal = calcSubtotal(items);
-    const discountAmt = subtotal * (Number(basketDiscount) / 100);
-    return Math.round((subtotal - discountAmt) * 100) / 100;
-  };
+  const handleExpandClick = id => setExpanded(exp => ({ ...exp, [id]: !exp[id] }));
 
-  // Filter and sort sales by search and branch
-  let filteredSales = sales.filter(s => s.branch === branch && !s.deleted);
-  if (searchInvoice) {
-    filteredSales = filteredSales.filter(s => s.invoice.toLowerCase().includes(searchInvoice.toLowerCase()));
-  }
-  if (searchDate) {
-    filteredSales = filteredSales.filter(s => s.date === searchDate);
-  }
-  filteredSales = filteredSales.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-
-  // Print bill handler
-  const printWindowRef = useRef(null);
-  const [printSale, setPrintSale] = useState(null);
-  const handlePrint = () => {
-    setPrintSale(form);
+  const handlePrint = (saleToPrint) => {
+    setPrintSale(saleToPrint);
     setTimeout(() => {
       if (printWindowRef.current) {
         const printContents = printWindowRef.current.innerHTML;
-        const printWindow = window.open('', '', 'width=600,height=800');
-        printWindow.document.write('<html><head><title>Print Bill</title>');
-        printWindow.document.write('<style>body{margin:0;padding:0;}@media print{body{margin:0;}}</style>');
-        printWindow.document.write('</head><body>');
+        const printWindow = window.open('', '', 'width=400,height=800');
+        printWindow.document.write('<html><head><title>Print Bill</title></head><body>');
         printWindow.document.write(printContents);
         printWindow.document.write('</body></html>');
         printWindow.document.close();
         printWindow.focus();
-        setTimeout(() => { printWindow.print(); printWindow.close(); }, 300);
+        setTimeout(() => { printWindow.print(); printWindow.close(); setPrintSale(null); }, 300);
       }
     }, 100);
   };
 
+  if (loading || settingsLoading) return <CircularProgress />;
+  if (error || settingsError) return <Alert severity="error">{error || settingsError}</Alert>;
+  if (!settings) return <Alert severity="warning">Could not load tenant settings.</Alert>;
+
   return (
     <Box>
-      <Grid container alignItems="center" spacing={2} sx={{ mb: 2 }}>
-        <Grid size={{ xs: 12, sm: 6 }}>
-          <Typography variant="h4" gutterBottom>Sales</Typography>
-          <Box sx={{ display: 'flex', gap: 2, mt: 1 }}>
-            <TextField
-              label="Search Invoice #"
-              value={searchInvoice}
-              onChange={e => setSearchInvoice(e.target.value)}
-              size="small"
-            />
-            <TextField
-              label="Search Date"
-              type="date"
-              value={searchDate}
-              onChange={e => setSearchDate(e.target.value)}
-              size="small"
-              InputLabelProps={{ shrink: true }}
-            />
-          </Box>
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6 }} sx={{ textAlign: { xs: 'left', sm: 'right' } }}>
-          <Button variant="contained" onClick={handleOpen}>New Sale</Button>
-        </Grid>
-      </Grid>
-      <Box sx={{ width: '100%', overflowX: 'auto' }}>
-        <Paper sx={{ minWidth: 600 }}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell />
-                <TableCell>Date/Time</TableCell>
-                <TableCell>Invoice #</TableCell>
-                <TableCell>Items</TableCell>
-                <TableCell>Total (₹)</TableCell>
-                <TableCell>Payment Type</TableCell>
-                <TableCell>Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {filteredSales.map(s => (
-                <React.Fragment key={s.id}>
-                  <TableRow>
-                    <TableCell>
-                      <IconButton size="small" onClick={() => handleExpandClick(s.id)}>
-                        {expanded[s.id] ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
-                      </IconButton>
-                    </TableCell>
-                    <TableCell>{s.datetime}</TableCell>
-                    <TableCell>{s.invoice}</TableCell>
-                    <TableCell>{s.items.length}</TableCell>
-                    <TableCell>{currency} {calcTotal(s.items, s.discount)}</TableCell>
-                    <TableCell>{s.paymentType}</TableCell>
-                    <TableCell>
-                      <IconButton onClick={() => handleEdit(s)} size="small"><EditIcon /></IconButton>
-                      <IconButton onClick={() => handleDelete(s.id)} size="small" color="error"><DeleteIcon /></IconButton>
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={6}>
-                      <Collapse in={expanded[s.id]} timeout="auto" unmountOnExit>
-                        <Box sx={{ margin: 1 }}>
-                          <Typography variant="subtitle2" gutterBottom>Items</Typography>
-                          {s.salesperson && (
-                            <Typography variant="body2" sx={{ mb: 1 }}><strong>Salesperson:</strong> {s.salesperson}</Typography>
-                          )}
-                          <Table size="small">
-                            <TableHead>
-                              <TableRow>
-                                <TableCell>Product</TableCell>
-                                <TableCell>Qty</TableCell>
-                                <TableCell>Price</TableCell>
-                                <TableCell>Line Total</TableCell>
-                              </TableRow>
-                            </TableHead>
-                            <TableBody>
-                              {Array.isArray(s.items) && s.items.map((item, idx) => (
-                                <TableRow key={idx}>
-                                  <TableCell>{item.name}</TableCell>
-                                  <TableCell>{item.qty}</TableCell>
-                                  <TableCell>{currency} {item.price}</TableCell>
-                                  <TableCell>
-                                    {currency} {item.qty * item.price}
-                                    {item.discount ? ` - ${item.discount}%` : ''}
-                                    {item.tax ? ` + ${item.tax}%` : ''}
-                                    <br />
-                                    <strong>Final: {currency} {calcItemTotal(item)}</strong>
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                          <Box sx={{ mt: 2, textAlign: 'right' }}>
-                            <Typography variant="body2">Subtotal: {currency} {calcSubtotal(s.items)}</Typography>
-                            <Typography variant="body2">Basket Discount: {s.discount || 0}%</Typography>
-                            <Typography variant="subtitle2">Total: {currency} {calcTotal(s.items, s.discount)}</Typography>
-                          </Box>
-                        </Box>
-                      </Collapse>
-                    </TableCell>
-                  </TableRow>
-                </React.Fragment>
-              ))}
-            </TableBody>
-          </Table>
-        </Paper>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+        <Typography variant="h4">Sales</Typography>
+        <Button variant="contained" onClick={handleOpen}>New Sale</Button>
       </Box>
+
+      {/* --- Sales Table --- */}
+      <Paper>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell />
+              <TableCell>Date/Time</TableCell>
+              <TableCell>Invoice #</TableCell>
+              <TableCell>Salesperson</TableCell>
+              <TableCell>Total</TableCell>
+              <TableCell>Actions</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {sales.map(s => (
+              <React.Fragment key={s.id}>
+                <TableRow>
+                  <TableCell>
+                    <IconButton size="small" onClick={() => handleExpandClick(s.id)}>
+                      {expanded[s.id] ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
+                    </IconButton>
+                  </TableCell>
+                  <TableCell>{new Date(s.datetime).toLocaleString()}</TableCell>
+                  <TableCell>{s.invoice}</TableCell>
+                  <TableCell>{s.user?.name || 'N/A'}</TableCell>
+                  <TableCell>{settings.currency} {s.total.toFixed(2)}</TableCell>
+                  <TableCell>
+                    <IconButton onClick={() => handlePrint(s)} size="small" title="Print Bill"><PrintIcon /></IconButton>
+                    <IconButton onClick={() => handleDelete(s.id)} color="error" size="small"><DeleteIcon /></IconButton>
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell style={{ padding: 0 }} colSpan={6}>
+                    <Collapse in={expanded[s.id]} timeout="auto" unmountOnExit>
+                      <Box m={2}>
+                        <Table size="small">
+                          <TableHead>
+                            <TableRow>
+                              <TableCell>Product</TableCell>
+                              <TableCell>Qty</TableCell>
+                              <TableCell>Price</TableCell>
+                              <TableCell>Total</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {s.items.map(item => (
+                              <TableRow key={item.id}>
+                                <TableCell>{item.product.name}</TableCell>
+                                <TableCell>{item.quantity}</TableCell>
+                                <TableCell>{settings.currency} {item.price.toFixed(2)}</TableCell>
+                                <TableCell>{settings.currency} {calcItemTotal(item).toFixed(2)}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </Box>
+                    </Collapse>
+                  </TableCell>
+                </TableRow>
+              </React.Fragment>
+            ))}
+          </TableBody>
+        </Table>
+      </Paper>
+
+      <div style={{ display: 'none' }}>
+        <BillPrint ref={printWindowRef} sale={printSale} settings={settings} />
+      </div>
+
+      {/* --- NEW SALE DIALOG --- */}
       <Dialog open={open} onClose={handleClose} fullWidth maxWidth="md">
-        {/* Make the dialog wider for better item row layout */}
-        <style>{`.MuiDialog-paperWidthSm { max-width: 900px !important; }`}</style>
-        <DialogTitle>{editId ? 'Edit Sale' : 'New Sale'}</DialogTitle>
+        <DialogTitle>{isEditing ? 'Edit Sale' : 'New Sale'}</DialogTitle>
         <DialogContent>
-          {formErrors.length > 0 && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {formErrors.map((msg, idx) => <div key={idx}>{msg}</div>)}
-            </Alert>
-          )}
-          <TextField margin="dense" label="Salesperson" name="salesperson" value={form.salesperson} onChange={handleChange} fullWidth sx={{ mb: 2 }} />
-          {/* Print Bill Preview (hidden, for print) */}
-          {printSale && (
-            <div style={{ display: 'none' }}>
-              <div ref={printWindowRef}>
-                <BillPrint sale={printSale} calcSubtotal={calcSubtotal} calcTotal={calcTotal} currency={currency} />
-              </div>
-            </div>
-          )}
-          <TextField margin="dense" label="Date/Time" name="datetime" value={form.datetime} fullWidth InputLabelProps={{ shrink: true }} InputProps={{ readOnly: true }} />
-          <FormControl fullWidth sx={{ mt: 2 }}>
-            <InputLabel>Payment Type</InputLabel>
-            <Select name="paymentType" value={form.paymentType} label="Payment Type" onChange={handleChange}>
-              {paymentTypes.map(type => (
-                <MenuItem value={type} key={type}>{type}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <TextField margin="dense" label="Invoice #" name="invoice" value={form.invoice} fullWidth InputProps={{ readOnly: true }} />
-          <FormControl fullWidth sx={{ mt: 2 }}>
-            <InputLabel>Branch</InputLabel>
-            <Select name="branch" value={form.branch} label="Branch" onChange={handleChange}>
-              {branches.map(b => (
-                <MenuItem value={b} key={b}>{b}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <Grid container spacing={2} sx={{ mt: 1 }}>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField margin="dense" label="Basket Discount (%)" name="discount" value={form.discount} onChange={handleChange} type="number" fullWidth />
+          {formErrors.length > 0 && <Alert severity="error" sx={{ mb: 2 }}>{formErrors.join(', ')}</Alert>}
+
+          {/* Invoice # on its own row to ensure full label visibility */}
+          <Grid container spacing={2} sx={{ mb: 1 }}>
+            <Grid item xs={12}>
+              <TextField
+                margin="dense"
+                label="Invoice #"
+                value={form.invoice}
+                fullWidth
+                InputProps={{ readOnly: true }}
+                inputProps={{ style: { fontWeight: "bold", fontSize: "1rem" } }}
+              />
             </Grid>
           </Grid>
-          <Box sx={{ mt: 2 }}>
-            <Typography variant="subtitle1">Items</Typography>
-            {Array.isArray(form.items) && form.items.map((item, idx) => (
-              <Grid container spacing={1} alignItems="center" key={idx} sx={{ mb: 1 }}>
-                <Grid size={{ xs: 12, sm: 4 }}>
-                  <FormControl fullWidth>
-                    <InputLabel>Product</InputLabel>
-                    <Select
-                      value={item.productId}
-                      label="Product"
-                      onChange={e => handleItemChange(idx, 'productId', e.target.value)}
-                    >
-                      {products.map(p => (
-                        <MenuItem value={p.id} key={p.id}>{p.name}</MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-                <Grid size={{ xs: 12, sm: 2 }}>
-                  <TextField
-                    label="Qty"
-                    type="number"
-                    value={item.qty}
-                    onChange={e => handleItemChange(idx, 'qty', e.target.value)}
-                    fullWidth
-                    inputProps={{ min: 1 }}
-                  />
-                </Grid>
-                <Grid size={{ xs: 12, sm: 2 }}>
-                  <TextField
-                    label="Discount (%)"
-                    type="number"
-                    value={item.discount}
-                    onChange={e => handleItemChange(idx, 'discount', e.target.value)}
-                    fullWidth
-                  />
-                </Grid>
-                <Grid size={{ xs: 12, sm: 2 }}>
-                  <TextField
-                    label="Tax (%)"
-                    type="number"
-                    value={item.tax}
-                    onChange={e => handleItemChange(idx, 'tax', e.target.value)}
-                    fullWidth
-                  />
-                </Grid>
-                <Grid size={{ xs: 12, sm: 2 }}>
-                  <TextField
-                    label="Price"
-                    value={(() => {
-                      if (item.productId) {
-                        const prod = products.find(p => p.id === item.productId);
-                        return prod ? currency + ' ' + prod.price : '';
-                      }
-                      return '';
-                    })()}
-                    InputProps={{ readOnly: true }}
-                    fullWidth
-                  />
-                </Grid>
-                <Grid size={{ xs: 12, sm: 1 }} sx={{ textAlign: 'center' }}>
-                  <IconButton onClick={() => handleRemoveItem(idx)} size="small" color="error"><RemoveIcon /></IconButton>
-                </Grid>
-              </Grid>
+
+          {/* Branch and Salesperson with dynamic width and proper labels */}
+          <Grid container spacing={2} sx={{ mb: 2 }}>
+            <Grid 
+              item 
+              xs={12} 
+              sm="auto" 
+              sx={{ minWidth: 200, flexGrow: 1 }}
+            >
+              <FormControl fullWidth margin="dense">
+                <InputLabel id="branch-label">Branch</InputLabel>
+                <Select
+                  labelId="branch-label"
+                  id="branch-select"
+                  name="branchId"
+                  value={form.branchId}
+                  label="Branch"
+                  onChange={handleChange}
+                  sx={{ minWidth: '150px', whiteSpace: 'nowrap' }}
+                >
+                  {branches.map(b => (
+                    <MenuItem key={b.id} value={b.id} sx={{ whiteSpace: 'normal' }}>
+                      {b.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+
+            <Grid 
+              item 
+              xs={12} 
+              sm="auto" 
+              sx={{ minWidth: 200, flexGrow: 1, ml: { sm: 2 } }}
+            >
+              <FormControl fullWidth margin="dense">
+                <InputLabel id="user-label">Salesperson</InputLabel>
+                <Select
+                  labelId="user-label"
+                  id="user-select"
+                  name="userId"
+                  value={form.userId}
+                  label="Salesperson"
+                  onChange={handleChange}
+                  sx={{ minWidth: '150px', whiteSpace: 'nowrap' }}
+                >
+                  {users.map(u => (
+                    <MenuItem key={u.id} value={u.id} sx={{ whiteSpace: 'normal' }}>
+                      {u.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+          </Grid>
+
+<Box>
+  <Typography variant="h6" mb={1}>Items</Typography>
+  {form.items.map((item, idx) => (
+    <Grid container spacing={1} alignItems="center" key={idx} sx={{ mb: 1 }}>
+      {/* Product field stays half width with minWidth */}
+      <Grid item xs={6} sm={6} md={6} sx={{ minWidth: 200 }}>
+        <FormControl fullWidth>
+          <InputLabel id={`product-label-${idx}`}>Product</InputLabel>
+          <Select
+            labelId={`product-label-${idx}`}
+            value={item.productId}
+            label="Product"
+            onChange={e => handleItemChange(idx, 'productId', e.target.value)}
+            sx={{ whiteSpace: 'normal' }}
+          >
+            {products.map(p => (
+              <MenuItem key={p.id} value={p.id} sx={{ whiteSpace: 'normal' }}>
+                {p.name}
+              </MenuItem>
             ))}
-            <Button startIcon={<AddIcon />} onClick={handleAddItem} sx={{ mt: 1 }}>Add Item</Button>
-            <Box sx={{ mt: 2, textAlign: 'right' }}>
-              <Typography variant="body2">Subtotal: {currency} {calcSubtotal(form.items)}</Typography>
-              <Typography variant="body2">Basket Discount: {form.discount || 0}%</Typography>
-              <Typography variant="subtitle2">Total: {currency} {calcTotal(form.items, form.discount)}</Typography>
-            </Box>
-          </Box>
+          </Select>
+        </FormControl>
+      </Grid>
+
+      {/* Quantity - reduced width */}
+      <Grid item xs={1.2} sm={1} md={0.9}>
+        <TextField
+          label="Qty"
+          type="number"
+          value={item.quantity}
+          onChange={e => handleItemChange(idx, 'quantity', e.target.value)}
+          fullWidth
+          inputProps={{ min: 1 }}
+        />
+      </Grid>
+
+      {/* Discount */}
+      <Grid item xs={1.5} sm={1.2} md={1}>
+        <TextField
+          label="Discount (%)"
+          type="number"
+          value={item.discount}
+          onChange={e => handleItemChange(idx, 'discount', e.target.value)}
+          fullWidth
+          inputProps={{ min: 0, max: 100 }}
+        />
+      </Grid>
+
+      {/* Tax */}
+      <Grid item xs={1.5} sm={1.2} md={1}>
+        <TextField
+          label="Tax (%)"
+          type="number"
+          value={item.tax}
+          onChange={e => handleItemChange(idx, 'tax', e.target.value)}
+          fullWidth
+          inputProps={{ min: 0, max: 100 }}
+        />
+      </Grid>
+
+      {/* Price - reduced width */}
+      <Grid item xs={1.2} sm={1} md={0.9}>
+        <TextField
+          label="Price"
+          type="number"
+          value={item.price}
+          onChange={e => handleItemChange(idx, 'price', e.target.value)}
+          fullWidth
+          inputProps={{ min: 0 }}
+        />
+      </Grid>
+
+      {/* Total (net price) - increased width to accommodate */}
+      <Grid item xs={1.8} sm={2} md={2.2}>
+        <Typography variant="subtitle1" sx={{ mt: 2, fontWeight: 'bold' }} align="center">
+          {settings.currency} {calcItemTotal(item).toFixed(2)}
+        </Typography>
+      </Grid>
+
+      {/* Remove Button */}
+      <Grid item xs={0.7} sm={0.6} md={0.6}>
+        <IconButton onClick={() => handleRemoveItem(idx)} color="error" aria-label="remove item" size="large">
+          <RemoveIcon />
+        </IconButton>
+      </Grid>
+    </Grid>
+  ))}
+  <Button startIcon={<AddIcon />} onClick={handleAddItem} sx={{ mt: 1 }}>
+    Add Item
+  </Button>
+</Box>
+
+
+
+
+          {/* Payment type, Discount, and Total on the next grid row */}
+<Grid container spacing={2} alignItems="center" sx={{ mt: 2 }}>
+  <Grid item xs={12} sm={4}>
+    <FormControl fullWidth margin="dense">
+      <InputLabel>Payment Type</InputLabel>
+      <Select
+        name="paymentType"
+        value={form.paymentType}
+        label="Payment Type"
+        onChange={handleChange}
+      >
+        {settings.paymentTypes.map(type => (
+          <MenuItem value={type} key={type}>{type}</MenuItem>
+        ))}
+      </Select>
+    </FormControl>
+  </Grid>
+  <Grid item xs={12} sm={4}>
+    <TextField
+      label="Basket Discount (%)"
+      name="discount"
+      value={form.discount}
+      onChange={handleChange}
+      type="number"
+      fullWidth
+    />
+  </Grid>
+  <Grid item xs={12} sm={4} sx={{ textAlign: 'right' }}>
+    <Typography variant="h6">
+      Total: {settings.currency} {calcTotal(form.items, form.discount).toFixed(2)}
+    </Typography>
+  </Grid>
+</Grid>
+
         </DialogContent>
+
         <DialogActions>
           <Button onClick={handleClose}>Cancel</Button>
-          <Button onClick={handleAddOrEdit} variant="contained">{editId ? 'Save' : 'Add'}</Button>
-          <Button onClick={handlePrint} variant="outlined" startIcon={<PrintIcon />}>Print Bill</Button>
+          <Button onClick={handleSave} variant="contained">{isEditing ? 'Save' : 'Create Sale'}</Button>
         </DialogActions>
       </Dialog>
     </Box>

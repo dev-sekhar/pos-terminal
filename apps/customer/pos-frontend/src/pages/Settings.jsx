@@ -1,136 +1,89 @@
-import React, { useState, useEffect } from 'react';
-import { Box, Typography, TextField, Button, MenuItem, List, ListItem, ListItemText, IconButton, Grid, Paper } from '@mui/material';
+import React, { useState } from 'react';
+import { Box, Typography, TextField, Button, MenuItem, List, ListItem, ListItemText, IconButton, Grid, Paper, Alert, CircularProgress } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
-import { useTenant } from '../context/TenantContext';
+import { useSettings } from '../context/SettingsContext'; // IMPORT THE HOOK
 
 const defaultCurrencies = ['USD', 'INR', 'EUR', 'GBP', 'JPY'];
-const defaultPaymentTypes = ['Cash', 'Card', 'UPI'];
 
 const Settings = () => {
-  const { tenant } = useTenant();
-  const [currency, setCurrency] = useState('USD');
-  const [units, setUnits] = useState(['kg', 'L', 'pcs']);
+  // GET THE SETTINGS AND UPDATE FUNCTION FROM THE CONTEXT
+  const { settings, updateSettings, loading, error } = useSettings();
+
   const [newUnit, setNewUnit] = useState('');
-  const [paymentTypes, setPaymentTypes] = useState(() => {
-    const saved = localStorage.getItem(`${tenant}_paymentTypesList`);
-    return saved ? JSON.parse(saved) : defaultPaymentTypes;
-  });
   const [newPaymentType, setNewPaymentType] = useState('');
 
-  useEffect(() => {
-    const savedCurrency = localStorage.getItem(`${tenant}_defaultCurrency`);
-    const savedUnits = localStorage.getItem(`${tenant}_unitsList`);
-    if (savedCurrency) setCurrency(savedCurrency);
-    if (savedUnits) setUnits(JSON.parse(savedUnits));
-  }, [tenant]);
-
-  useEffect(() => {
-    localStorage.setItem(`${tenant}_defaultCurrency`, currency);
-  }, [currency, tenant]);
-
-  useEffect(() => {
-    localStorage.setItem(`${tenant}_unitsList`, JSON.stringify(units));
-  }, [units, tenant]);
-
-  useEffect(() => {
-    localStorage.setItem(`${tenant}_paymentTypesList`, JSON.stringify(paymentTypes));
-  }, [paymentTypes, tenant]);
+  // All handle functions now call the updateSettings function from the context
+  const handleCurrencyChange = (e) => {
+    updateSettings({ ...settings, currency: e.target.value });
+  };
 
   const handleAddUnit = () => {
-    if (newUnit && !units.includes(newUnit)) {
-      setUnits([...units, newUnit]);
+    if (newUnit && !settings.units.includes(newUnit)) {
+      updateSettings({ ...settings, units: [...settings.units, newUnit] });
       setNewUnit('');
     }
   };
+
   const handleDeleteUnit = (unit) => {
-    setUnits(units.filter(u => u !== unit));
+    updateSettings({ ...settings, units: settings.units.filter(u => u !== unit) });
   };
 
   const handleAddPaymentType = () => {
-    if (newPaymentType && !paymentTypes.includes(newPaymentType)) {
-      setPaymentTypes([...paymentTypes, newPaymentType]);
+    if (newPaymentType && !settings.paymentTypes.includes(newPaymentType)) {
+      updateSettings({ ...settings, paymentTypes: [...settings.paymentTypes, newPaymentType] });
       setNewPaymentType('');
     }
   };
+  
   const handleDeletePaymentType = (type) => {
-    setPaymentTypes(paymentTypes.filter(t => t !== type));
+    updateSettings({ ...settings, paymentTypes: settings.paymentTypes.filter(t => t !== type) });
   };
+
+  if (loading) return <CircularProgress />;
+  if (error) return <Alert severity="error">{error}</Alert>;
+  if (!settings) return <Alert severity="warning">Could not load tenant settings.</Alert>; // Guard against null settings
 
   return (
     <Box p={3}>
       <Typography variant="h4" gutterBottom>Settings</Typography>
       <Paper sx={{ p: 2, mb: 3 }}>
         <Typography variant="h6">Default Currency</Typography>
-        <TextField
-          select
-          label="Currency"
-          value={currency}
-          onChange={e => setCurrency(e.target.value)}
-          sx={{ mt: 2, minWidth: 120 }}
-        >
-          {defaultCurrencies.map(cur => (
-            <MenuItem key={cur} value={cur}>{cur}</MenuItem>
-          ))}
+        <TextField select label="Currency" value={settings.currency} onChange={handleCurrencyChange} sx={{ mt: 2, minWidth: 120 }}>
+          {defaultCurrencies.map(cur => <MenuItem key={cur} value={cur}>{cur}</MenuItem>)}
         </TextField>
       </Paper>
-      <Paper sx={{ p: 2 }}>
-        <Typography variant="h6">Units</Typography>
-        <Grid container spacing={2} alignItems="center" sx={{ mt: 1 }}>
-          <Grid size={{ xs: 8, sm: 6, md: 4 }}>
-            <TextField
-              label="Add Unit"
-              value={newUnit}
-              onChange={e => setNewUnit(e.target.value)}
-              fullWidth
-              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddUnit(); } }}
-            />
-          </Grid>
-          <Grid>
-            <Button variant="contained" onClick={handleAddUnit}>Add</Button>
-          </Grid>
+      <Grid container spacing={3}>
+        <Grid item xs={12} md={6}>
+          <Paper sx={{ p: 2, height: '100%' }}>
+            <Typography variant="h6">Units of Measurement</Typography>
+            <Box display="flex" alignItems="center" mt={1}>
+              <TextField label="Add Unit" value={newUnit} onChange={e => setNewUnit(e.target.value)} size="small"/>
+              <Button variant="contained" onClick={handleAddUnit} sx={{ ml: 1 }}>Add</Button>
+            </Box>
+            <List>{settings.units.map(unit => (
+              <ListItem key={unit} secondaryAction={<IconButton edge="end" onClick={() => handleDeleteUnit(unit)}><DeleteIcon /></IconButton>}>
+                <ListItemText primary={unit} />
+              </ListItem>
+            ))}</List>
+          </Paper>
         </Grid>
-        <List>
-          {units.map(unit => (
-            <ListItem key={unit} secondaryAction={
-              <IconButton edge="end" onClick={() => handleDeleteUnit(unit)}>
-                <DeleteIcon />
-              </IconButton>
-            }>
-              <ListItemText primary={unit} />
-            </ListItem>
-          ))}
-        </List>
-      </Paper>
-      <Paper sx={{ p: 2, mt: 3 }}>
-        <Typography variant="h6">Payment Types</Typography>
-        <Grid container spacing={2} alignItems="center" sx={{ mt: 1 }}>
-          <Grid size={{ xs: 8, sm: 6, md: 4 }}>
-            <TextField
-              label="Add Payment Type"
-              value={newPaymentType}
-              onChange={e => setNewPaymentType(e.target.value)}
-              fullWidth
-              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddPaymentType(); } }}
-            />
-          </Grid>
-          <Grid>
-            <Button variant="contained" onClick={handleAddPaymentType}>Add</Button>
-          </Grid>
+        <Grid item xs={12} md={6}>
+          <Paper sx={{ p: 2, height: '100%' }}>
+            <Typography variant="h6">Payment Types</Typography>
+            <Box display="flex" alignItems="center" mt={1}>
+              <TextField label="Add Payment Type" value={newPaymentType} onChange={e => setNewPaymentType(e.target.value)} size="small"/>
+              <Button variant="contained" onClick={handleAddPaymentType} sx={{ ml: 1 }}>Add</Button>
+            </Box>
+            <List>{settings.paymentTypes.map(type => (
+              <ListItem key={type} secondaryAction={<IconButton edge="end" onClick={() => handleDeletePaymentType(type)}><DeleteIcon /></IconButton>}>
+                <ListItemText primary={type} />
+              </ListItem>
+            ))}</List>
+          </Paper>
         </Grid>
-        <List>
-          {paymentTypes.map(type => (
-            <ListItem key={type} secondaryAction={
-              <IconButton edge="end" onClick={() => handleDeletePaymentType(type)}>
-                <DeleteIcon />
-              </IconButton>
-            }>
-              <ListItemText primary={type} />
-            </ListItem>
-          ))}
-        </List>
-      </Paper>
+      </Grid>
     </Box>
   );
 };
 
-export default Settings; 
+export default Settings;
