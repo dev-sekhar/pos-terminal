@@ -44,7 +44,7 @@ const Header = () => {
     >
       <Toolbar>
         <Typography variant="h6" sx={{ flexGrow: 1 }}>
-          POS Terminal
+          FINZA
         </Typography>
         <Box
           sx={{
