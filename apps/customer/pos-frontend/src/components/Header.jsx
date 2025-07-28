@@ -3,6 +3,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import React from 'react';
 import { useBranch } from '../context/BranchContext';
 import { useTenant } from '../context/TenantContext';
+import { useUser } from '../context/UserContext';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 const Header = () => {
@@ -11,6 +12,7 @@ const Header = () => {
   const isAuthPage = location.pathname === '/login';
   const { branch, setBranch, branches, branchLocked } = useBranch();
   const { tenant, setTenant, tenants, tenantLocked } = useTenant();
+  const { user } = useUser();
 
   // Debug logs
   console.log('Header debug:', {
@@ -29,6 +31,11 @@ const Header = () => {
           POS Terminal
         </Typography>
         <Box display="flex" alignItems="center">
+          {user && (
+            <Typography sx={{ mr: 2, color: 'white' }}>
+              {user.name}
+            </Typography>
+          )}
           {tenantLocked ? (
             <Typography sx={{ mr: 2, color: 'white', minWidth: 120 }}>
               {tenant}
