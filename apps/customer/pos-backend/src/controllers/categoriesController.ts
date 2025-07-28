@@ -1,9 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 import * as categoriesService from '../services/categoriesService';
-import { User, Role } from '@prisma/client';
+import { UserContextPayload } from '../types/custom';
+import { Role } from '@prisma/client';
 
-// The return type is a plain object that matches what the function actually returns.
-const getUserFromRequest = (req: Request): { id: number; tenantId: string; role: Role; branchId: number; } => {
+const getUserFromRequest = (req: Request): UserContextPayload => {
     const user = req.user;
     if (!user) {
         throw new Error('User context is missing from the request session.');
@@ -19,9 +19,7 @@ const getUserFromRequest = (req: Request): { id: number; tenantId: string; role:
 export const listCategories = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const requestingUser = getUserFromRequest(req);
-    // We cast it to User here because the service layer expects the full model,
-    // but our service logic only uses the properties we are passing. This is a safe cast.
-    const categories = await categoriesService.listCategories(requestingUser as User);
+    const categories = await categoriesService.listCategories(requestingUser);
     res.json(categories);
   } catch (err) {
     next(err);
@@ -34,7 +32,7 @@ export const createCategory = async (req: Request, res: Response, next: NextFunc
     const { name, description } = req.body;
     if (!name) return res.status(400).json({ message: 'Category name is required.' });
 
-    const category = await categoriesService.createCategory({ name, description }, requestingUser as User);
+    const category = await categoriesService.createCategory({ name, description }, requestingUser);
     res.status(201).json(category);
   } catch (err) { next(err); }
 };
@@ -42,7 +40,7 @@ export const createCategory = async (req: Request, res: Response, next: NextFunc
 export const getCategoryById = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const requestingUser = getUserFromRequest(req);
-    const category = await categoriesService.getCategoryById(Number(req.params.id), requestingUser as User);
+    const category = await categoriesService.getCategoryById(Number(req.params.id), requestingUser);
     if (!category) return res.status(404).json({ message: 'Category not found' });
     res.json(category);
   } catch (err) {
@@ -53,7 +51,7 @@ export const getCategoryById = async (req: Request, res: Response, next: NextFun
 export const updateCategory = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const requestingUser = getUserFromRequest(req);
-    const category = await categoriesService.updateCategory(Number(req.params.id), req.body, requestingUser as User);
+    const category = await categoriesService.updateCategory(Number(req.params.id), req.body, requestingUser);
     if (!category) return res.status(404).json({ message: 'Category not found' });
     res.json(category);
   } catch (err) {
@@ -64,7 +62,7 @@ export const updateCategory = async (req: Request, res: Response, next: NextFunc
 export const deleteCategory = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const requestingUser = getUserFromRequest(req);
-    await categoriesService.deleteCategory(Number(req.params.id), requestingUser as User);
+    await categoriesService.deleteCategory(Number(req.params.id), requestingUser);
     res.status(204).send();
   } catch (err) {
     next(err);

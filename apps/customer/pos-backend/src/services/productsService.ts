@@ -1,9 +1,8 @@
-import { PrismaClient, Prisma, Product, Role } from '@prisma/client';
-import { UserContextPayload } from '../types/custom'; // 1. IMPORT THE CORRECT TYPE
+import { PrismaClient, Prisma, Product } from '@prisma/client';
+import { UserContextPayload } from '../types/custom';
 
 const prisma = new PrismaClient();
 
-// 2. UPDATE ALL FUNCTION SIGNATURES to use the UserContextPayload
 export const listProducts = async (requestingUser: UserContextPayload): Promise<Product[]> => {
   return prisma.product.findMany({
     where: { tenantId: requestingUser.tenantId, deleted: false },
@@ -55,18 +54,44 @@ export const generateNewProductCode = async (requestingUser: UserContextPayload)
     let nextNum = 1;
     if (lastProduct) {
         const lastNum = parseInt(lastProduct.code.split('-')[1], 10);
-        if (!isNaN(lastNum)) nextNum = lastNum + 1;
+        if (!isNaN(lastNum)) {
+            nextNum = lastNum + 1;
+        }
     }
     return `${prefix}${String(nextNum).padStart(3, '0')}`;
 };
 
 export const importProductsFromCSV = async (products: Prisma.ProductUncheckedCreateInput[], requestingUser: UserContextPayload) => {
-    const productsToCreate = products.map(p => ({
-        ...p,
-        price: Number(p.price),
-        tenantId: requestingUser.tenantId,
-        createdById: requestingUser.id,
-    }));
+    const today = new Date();
+    const datePart = today.toISOString().slice(0, 10).replace(/-/g, '');
+    const prefix = `P${datePart}-`;
+    
+    const lastProduct = await prisma.product.findFirst({
+        where: { tenantId: requestingUser.tenantId, code: { startsWith: prefix } },
+        orderBy: { code: 'desc' },
+    });
+
+    let nextNum = 1;
+    if (lastProduct) {
+        const lastNum = parseInt(lastProduct.code.split('-')[1], 10);
+        if (!isNaN(lastNum)) {
+            nextNum = lastNum + 1;
+        }
+    }
+    
+    const productsToCreate = products.map((p, index) => {
+        const newCode = `${prefix}${String(nextNum + index).padStart(3, '0')}`;
+        return {
+            name: p.name,
+            unit: p.unit,
+            price: Number(p.price),
+            productCategoryId: p.productCategoryId,
+            code: newCode,
+            tenantId: requestingUser.tenantId,
+            createdById: requestingUser.id,
+        };
+    });
+
     return prisma.product.createMany({
         data: productsToCreate,
         skipDuplicates: true,
