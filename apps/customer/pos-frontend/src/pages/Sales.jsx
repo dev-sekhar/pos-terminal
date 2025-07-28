@@ -38,6 +38,7 @@ import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 import PrintIcon from "@mui/icons-material/Print";
 import { useTenant } from "../context/TenantContext";
 import { useSettings } from "../context/SettingsContext";
+import { useUser } from "../context/UserContext";
 
 const initialFormState = {
   invoice: "",
@@ -66,20 +67,14 @@ const calcTotal = (items, basketDiscount = 0) => {
   return Math.round((subtotal - discountAmt) * 100) / 100;
 };
 
+import "../styles/Sales.css";
+
 const BillPrint = React.forwardRef(({ sale, settings }, ref) => {
   if (!sale || !settings) return null;
   return (
-    <div
-      ref={ref}
-      style={{
-        fontFamily: "monospace",
-        width: 350,
-        margin: "0 auto",
-        padding: 16,
-      }}
-    >
-      <h2 style={{ textAlign: "center", margin: 0 }}>POS Terminal</h2>
-      <div style={{ fontSize: 13, marginBottom: 8 }}>
+    <div ref={ref} className="bill-print">
+      <h2 className="bill-print-header">POS Terminal</h2>
+      <div className="bill-print-info">
         <div>
           <strong>Invoice:</strong> {sale.invoice}
         </div>
@@ -90,14 +85,7 @@ const BillPrint = React.forwardRef(({ sale, settings }, ref) => {
           <strong>Payment:</strong> {sale.paymentType}
         </div>
       </div>
-      <table
-        style={{
-          width: "100%",
-          fontSize: 13,
-          borderCollapse: "collapse",
-          marginBottom: 8,
-        }}
-      >
+      <table className="bill-print-table">
         <thead>
           <tr>
             <th align="left">Item</th>
@@ -118,8 +106,8 @@ const BillPrint = React.forwardRef(({ sale, settings }, ref) => {
             ))}
         </tbody>
       </table>
-      <div style={{ borderTop: "1px dashed #888", margin: "8px 0" }}></div>
-      <div style={{ fontSize: 13, textAlign: "right" }}>
+      <div className="bill-print-divider"></div>
+      <div className="bill-print-totals">
         <div>
           <strong>Subtotal:</strong> {settings.currency}{" "}
           {calcSubtotal(sale.items).toFixed(2)}
@@ -143,10 +131,10 @@ const Sales = () => {
     loading: settingsLoading,
     error: settingsError,
   } = useSettings();
+  const { user } = useUser();
   const [sales, setSales] = useState([]);
   const [inventory, setInventory] = useState([]);
   const [branches, setBranches] = useState([]);
-  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [open, setOpen] = useState(false);
@@ -182,17 +170,15 @@ const Sales = () => {
       setLoading(true);
       setError("");
       try {
-        const [salesData, inventoryData, branchesData, usersData] =
+        const [salesData, inventoryData, branchesData] =
           await Promise.all([
             callApi("/api/sales"),
             callApi("/api/inventory"),
             callApi("/api/branches"),
-            callApi("/api/users"),
           ]);
         setSales(salesData || []);
         setInventory(inventoryData || []);
         setBranches(branchesData || []);
-        setUsers(usersData || []);
       } catch (err) {
         setError(err.message);
       } finally {
@@ -218,6 +204,7 @@ const Sales = () => {
         invoice,
         datetime,
         paymentType: settings?.paymentTypes[0] || "",
+        userId: user.id,
       });
       setFormErrors([]);
       setIsEditing(false);
@@ -234,7 +221,20 @@ const Sales = () => {
   const handleItemChange = (idx, field, value) => {
     const newItems = [...form.items];
     const item = { ...newItems[idx] };
+
     if (field === "productId") {
+      const existingItemIndex = newItems.findIndex(
+        (i) => i.productId === value
+      );
+
+      if (existingItemIndex > -1 && existingItemIndex !== idx) {
+        const existingItem = newItems[existingItemIndex];
+        existingItem.quantity += 1;
+        newItems.splice(idx, 1); // Remove the new row
+        setForm((f) => ({ ...f, items: newItems }));
+        return;
+      }
+
       const invItem = inventory.find(
         (inv) => inv.branchId === form.branchId && inv.productId === value
       );
@@ -257,15 +257,23 @@ const Sales = () => {
     } else {
       item[field] = value;
     }
+
     newItems[idx] = item;
     setForm((f) => ({ ...f, items: newItems }));
   };
 
-  const handleAddItem = () =>
+  const handleAddItem = () => {
+    const newItems = [...form.items];
+    const lastItem = newItems[newItems.length - 1];
+    if (lastItem && !lastItem.productId) {
+      // Prevent adding a new item if the last one is not selected
+      return;
+    }
     setForm((f) => ({
       ...f,
       items: [...f.items, { productId: "", quantity: 1, discount: 0, tax: 0 }],
     }));
+  }
   const handleRemoveItem = (idx) =>
     setForm((f) => ({ ...f, items: f.items.filter((_, i) => i !== idx) }));
 
@@ -476,21 +484,13 @@ const Sales = () => {
               </FormControl>
             </Grid>
             <Grid item xs={12} sm="auto" sx={{ minWidth: 200, flexGrow: 1 }}>
-              <FormControl fullWidth margin="dense">
-                <InputLabel>Salesperson</InputLabel>
-                <Select
-                  name="userId"
-                  value={form.userId}
-                  label="Salesperson"
-                  onChange={handleChange}
-                >
-                  {users.map((u) => (
-                    <MenuItem key={u.id} value={u.id}>
-                      {u.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+              <TextField
+                margin="dense"
+                label="Salesperson"
+                value={user.name}
+                fullWidth
+                InputProps={{ readOnly: true }}
+              />
             </Grid>
           </Grid>
 

@@ -44,12 +44,6 @@ const navItems = [
   { text: "Reports", path: "/reports", icon: <ReportsIcon /> },
   // --- THIS IS THE FIX (Part 1): Define which roles can see which links ---
   { text: "Users", path: "/users", icon: <UserIcon />, roles: ["ADMIN"] },
-  {
-    text: "Settings",
-    path: "/settings",
-    icon: <SettingsIcon />,
-    roles: ["ADMIN", "MANAGER"],
-  },
 ];
 
 const Sidebar = () => {

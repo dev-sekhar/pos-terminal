@@ -6,13 +6,11 @@ import React from 'react';
 
 const MainLayout = () => {
   return (
-    <Box display="flex">
+    <Box sx={{ display: 'flex' }}>
+      <Header />
       <Sidebar />
-      <Box flexGrow={1}>
-        <Header />
-        <Box p={3}>
-          <Outlet />
-        </Box>
+      <Box component="main" sx={{ flexGrow: 1, p: 3, mt: 8 }}>
+        <Outlet />
       </Box>
     </Box>
   )

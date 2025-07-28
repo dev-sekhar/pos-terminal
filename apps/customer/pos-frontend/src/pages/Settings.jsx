@@ -26,6 +26,8 @@ const Settings = () => {
   const { settings, updateSettings, loading, error } = useSettings();
   const { user } = useUser(); // 2. GET THE LOGGED-IN USER
 
+  console.log("Settings page settings:", settings);
+
   const [newUnit, setNewUnit] = useState("");
   const [newPaymentType, setNewPaymentType] = useState("");
 
@@ -83,6 +85,51 @@ const Settings = () => {
           make changes.
         </Alert>
       )}
+      <Paper sx={{ p: 2, mb: 3 }}>
+        <Typography variant="h6">Branding</Typography>
+        <TextField
+          label="Tenant Display Name"
+          value={settings.tenantDisplayName || ""}
+          onChange={(e) =>
+            updateSettings({ ...settings, tenantDisplayName: e.target.value })
+          }
+          sx={{ mt: 2, minWidth: 240 }}
+          disabled={!isAdmin}
+        />
+        <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column' }}>
+          <Box>
+            <Button variant="contained" component="label" disabled={!isAdmin}>
+              Upload Logo
+              <input
+                type="file"
+                hidden
+                accept="image/*"
+                onChange={(e) => {
+                  const file = e.target.files[0];
+                  if (file) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                      updateSettings({ ...settings, logo: reader.result });
+                    };
+                    reader.readAsDataURL(file);
+                  }
+                }}
+              />
+            </Button>
+            {settings.logo && (
+              <Box
+                component="img"
+                src={settings.logo}
+                alt="logo"
+                sx={{ height: 40, ml: 2, verticalAlign: "middle" }}
+              />
+            )}
+          </Box>
+          <Typography variant="caption" sx={{ mt: 1 }}>
+            Supported formats: JPG, PNG, SVG. Max size: 1MB. Recommended dimensions: 200x200 pixels.
+          </Typography>
+        </Box>
+      </Paper>
       <Paper sx={{ p: 2, mb: 3 }}>
         <Typography variant="h6">Default Currency</Typography>
         <TextField

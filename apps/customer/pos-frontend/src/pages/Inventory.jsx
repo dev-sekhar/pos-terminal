@@ -3,6 +3,7 @@ import { Box, Typography, Paper, Table, TableHead, TableRow, TableCell, TableBod
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useTenant } from '../context/TenantContext';
+import '../styles/Inventory.css';
 
 const initialFormState = { productId: '', branchId: '', stock: '', reorderLevel: '' };
 
@@ -115,11 +116,16 @@ const Inventory = () => {
             // --- THIS IS THE FIX (Part 2: MUI Grid Syntax) ---
             // Props like xs, md, lg are now passed directly to the Grid component.
             <Grid key={item.id} xs={12} md={6} lg={4}>
-              <Paper elevation={2} sx={{ p: 2, backgroundColor: '#fff4f4' }}>
+              <Paper elevation={2} className="low-stock-alert">
                 <Typography variant="subtitle1">🔴 Low Stock Alert</Typography>
                 <Typography>
                   <strong>{item.product.name}</strong> at <strong>{item.branch.name}</strong> has only {item.stock} units left.
                 </Typography>
+                {item.stock === 0 && (
+                  <Button variant="outlined" size="small" sx={{ mt: 1 }} onClick={() => handleOpen(item)}>
+                    Update Inventory
+                  </Button>
+                )}
               </Paper>
             </Grid>
           ))}
@@ -132,7 +138,7 @@ const Inventory = () => {
             <TableCell>Product</TableCell><TableCell>Branch</TableCell><TableCell>Stock</TableCell><TableCell>Reorder Level</TableCell><TableCell>Status</TableCell><TableCell>Actions</TableCell>
           </TableRow></TableHead>
           <TableBody>
-            {inventory.map(item => (
+            {inventory.filter(item => item.stock > 0).map(item => (
               <TableRow key={item.id}>
                 <TableCell>{item.product.name}</TableCell>
                 <TableCell>{item.branch.name}</TableCell>
