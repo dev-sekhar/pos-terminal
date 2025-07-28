@@ -44,7 +44,7 @@ const Header = () => {
     >
       <Toolbar>
         <Typography variant="h6" sx={{ flexGrow: 1 }}>
-          FINZA
+          POS Terminal
         </Typography>
         <Box
           sx={{
@@ -72,7 +72,7 @@ const Header = () => {
           <Button color="inherit" onClick={() => navigate("/login")}>
             Logout
           </Button>
-          {!isAuthPage && (
+          {!isAuthPage && user?.role === "ADMIN" && (
             <IconButton
               color="inherit"
               sx={{ ml: 1 }}
