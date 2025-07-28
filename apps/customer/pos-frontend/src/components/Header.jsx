@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import {
   AppBar,
   Toolbar,
@@ -14,6 +15,15 @@ import { useBranch } from "../context/BranchContext";
 import { useTenant } from "../context/TenantContext";
 import { useUser } from "../context/UserContext";
 import { useLocation, useNavigate } from "react-router-dom";
+=======
+import { AppBar, Toolbar, Typography, Button, Box, Select, MenuItem, IconButton } from '@mui/material';
+import SettingsIcon from '@mui/icons-material/Settings';
+import React from 'react';
+import { useBranch } from '../context/BranchContext';
+import { useTenant } from '../context/TenantContext';
+import { useUser } from '../context/UserContext';
+import { useLocation, useNavigate } from 'react-router-dom';
+>>>>>>> ce99c12bcd201ea2c82384d7c25a378650720bb8
 
 const Header = () => {
   const location = useLocation();
@@ -41,7 +51,13 @@ const Header = () => {
         </Typography>
         <Box display="flex" alignItems="center">
           {user && (
+<<<<<<< HEAD
             <Typography sx={{ mr: 2, color: "white" }}>{user.name}</Typography>
+=======
+            <Typography sx={{ mr: 2, color: 'white' }}>
+              {user.name}
+            </Typography>
+>>>>>>> ce99c12bcd201ea2c82384d7c25a378650720bb8
           )}
           {tenantLocked ? (
             <Typography sx={{ mr: 2, color: "white", minWidth: 120 }}>
