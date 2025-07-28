@@ -1,97 +1,71 @@
-import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaClient, Prisma, Product, Role } from '@prisma/client';
+import { UserContextPayload } from '../types/custom'; // 1. IMPORT THE CORRECT TYPE
 
 const prisma = new PrismaClient();
 
-// List all non-deleted products for a tenant, including their category
-export const listProducts = async (tenantId: string) => {
+// 2. UPDATE ALL FUNCTION SIGNATURES to use the UserContextPayload
+export const listProducts = async (requestingUser: UserContextPayload): Promise<Product[]> => {
   return prisma.product.findMany({
-    where: { tenantId, deleted: false },
+    where: { tenantId: requestingUser.tenantId, deleted: false },
     include: { productCategory: true },
     orderBy: { name: 'asc' },
   });
 };
 
-// Create a new product
-export const createProduct = async (data: Prisma.ProductUncheckedCreateInput, tenantId: string, createdById: number) => {
-  // Destructure to ensure only expected fields are passed
+export const createProduct = async (data: Prisma.ProductUncheckedCreateInput, requestingUser: UserContextPayload): Promise<Product> => {
   const { name, code, unit, price, productCategoryId } = data;
-  
-  // FIX: Ensure the price is a number before sending it to the database.
   const numericPrice = parseFloat(String(price));
-  if (isNaN(numericPrice)) {
-    throw new Error("Invalid price. Price must be a valid number.");
-  }
+  if (isNaN(numericPrice)) throw new Error("Invalid price.");
 
   return prisma.product.create({
     data: {
-      name,
-      code,
-      unit,
-      price: numericPrice, // Use the converted numeric price
-      productCategoryId,
-      tenantId,
-      createdById,
+      name, code, unit, price: numericPrice, productCategoryId,
+      tenantId: requestingUser.tenantId,
+      createdById: requestingUser.id,
     },
   });
 };
 
-// Get a single product by its ID
-export const getProductById = async (id: number, tenantId: string) => {
+export const getProductById = async (id: number, requestingUser: UserContextPayload): Promise<Product | null> => {
   return prisma.product.findFirst({
-    where: { id, tenantId, deleted: false },
+    where: { id, tenantId: requestingUser.tenantId, deleted: false },
   });
 };
 
-// Update a product
-export const updateProduct = async (id: number, data: Prisma.ProductUpdateInput, tenantId: string) => {
-    // Also add the fix to the update function for consistency
-    if (data.price) {
-        data.price = parseFloat(String(data.price));
-        if (isNaN(Number(data.price))) {
-            throw new Error("Invalid price. Price must be a valid number.");
-        }
-    }
-  return prisma.product.updateMany({
-    where: { id, tenantId },
-    data,
-  }).then(() => getProductById(id, tenantId));
+export const updateProduct = async (id: number, data: Prisma.ProductUpdateInput, requestingUser: UserContextPayload): Promise<Product | null> => {
+  await prisma.product.updateMany({ where: { id, tenantId: requestingUser.tenantId }, data });
+  return getProductById(id, requestingUser);
 };
 
-// Soft delete a product
-export const deleteProduct = async (id: number, tenantId: string) => {
+export const deleteProduct = async (id: number, requestingUser: UserContextPayload): Promise<{ count: number }> => {
   return prisma.product.updateMany({
-    where: { id, tenantId },
+    where: { id, tenantId: requestingUser.tenantId },
     data: { deleted: true },
   });
 };
 
-// Generate a new, unique product code for the tenant
-export const generateNewProductCode = async (tenantId: string): Promise<string> => {
+export const generateNewProductCode = async (requestingUser: UserContextPayload): Promise<string> => {
     const today = new Date();
-    const datePart = today.toISOString().slice(0, 10).replace(/-/g, ''); // YYYYMMDD
+    const datePart = today.toISOString().slice(0, 10).replace(/-/g, '');
     const prefix = `P${datePart}-`;
-
     const lastProduct = await prisma.product.findFirst({
-        where: { tenantId, code: { startsWith: prefix } },
+        where: { tenantId: requestingUser.tenantId, code: { startsWith: prefix } },
         orderBy: { code: 'desc' },
     });
-
     let nextNum = 1;
     if (lastProduct) {
         const lastNum = parseInt(lastProduct.code.split('-')[1], 10);
-        nextNum = lastNum + 1;
+        if (!isNaN(lastNum)) nextNum = lastNum + 1;
     }
-
     return `${prefix}${String(nextNum).padStart(3, '0')}`;
 };
 
-// Bulk create products from a CSV import
-export const importProductsFromCSV = async (products: Prisma.ProductUncheckedCreateInput[], tenantId: string, createdById: number) => {
+export const importProductsFromCSV = async (products: Prisma.ProductUncheckedCreateInput[], requestingUser: UserContextPayload) => {
     const productsToCreate = products.map(p => ({
         ...p,
-        price: parseFloat(String(p.price)), // Ensure price is a number here too
-        tenantId,
-        createdById,
+        price: Number(p.price),
+        tenantId: requestingUser.tenantId,
+        createdById: requestingUser.id,
     }));
     return prisma.product.createMany({
         data: productsToCreate,

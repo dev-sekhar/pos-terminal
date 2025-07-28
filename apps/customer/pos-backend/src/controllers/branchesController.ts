@@ -1,40 +1,43 @@
 import { Request, Response, NextFunction } from 'express';
 import * as branchesService from '../services/branchesService';
+import { User, Role } from '@prisma/client';
 
-// Securely gets the tenantId from the request object (attached by middleware)
-const getTenantId = (req: Request): string => {
-    const tenantId = req.tenant?.id;
-    if (!tenantId) {
-        throw new Error('Tenant ID is missing from the request session.');
+const getUserFromRequest = (req: Request): { id: number; tenantId: string; role: Role; branchId: number; } => {
+    const user = req.user;
+    if (!user) {
+        throw new Error('User context is missing from the request session.');
     }
-    return tenantId;
+    return {
+        id: Number(user.id),
+        tenantId: user.tenantId,
+        role: user.role,
+        branchId: user.branchId,
+    };
 };
 
 export const listBranches = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const tenantId = getTenantId(req);
-    const branches = await branchesService.listBranches(tenantId);
+    const requestingUser = getUserFromRequest(req);
+    const branches = await branchesService.listBranches(requestingUser as User);
     res.json(branches);
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 };
 
 export const createBranch = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const tenantId = getTenantId(req);
-    // createdById should also come from the JWT via middleware in a real app
-    const branch = await branchesService.createBranch(req.body, tenantId);
+    const requestingUser = getUserFromRequest(req);
+    // --- THIS IS THE FIX ---
+    // We now pass the form data (req.body) as the first argument
+    // and the user object as the second, matching the service's definition.
+    const branch = await branchesService.createBranch(req.body, requestingUser as User);
     res.status(201).json(branch);
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 };
 
 export const getBranchById = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const tenantId = getTenantId(req);
-    const branch = await branchesService.getBranchById(Number(req.params.id), tenantId);
+    const requestingUser = getUserFromRequest(req);
+    const branch = await branchesService.getBranchById(Number(req.params.id), requestingUser as User);
     if (!branch) return res.status(404).json({ message: 'Branch not found' });
     res.json(branch);
   } catch (err) {
@@ -44,8 +47,8 @@ export const getBranchById = async (req: Request, res: Response, next: NextFunct
 
 export const updateBranch = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const tenantId = getTenantId(req);
-    const branch = await branchesService.updateBranch(Number(req.params.id), req.body, tenantId);
+    const requestingUser = getUserFromRequest(req);
+    const branch = await branchesService.updateBranch(Number(req.params.id), req.body, requestingUser as User);
     if (!branch) return res.status(404).json({ message: 'Branch not found' });
     res.json(branch);
   } catch (err) {
@@ -55,9 +58,12 @@ export const updateBranch = async (req: Request, res: Response, next: NextFuncti
 
 export const deleteBranch = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const tenantId = getTenantId(req);
-    await branchesService.deleteBranch(Number(req.params.id), tenantId);
-    res.status(204).send(); // 204 No Content is standard for a successful delete
+    const requestingUser = getUserFromRequest(req);
+    const result = await branchesService.deleteBranch(Number(req.params.id), requestingUser as User);
+    if (result.count === 0) {
+      return res.status(404).json({ message: 'Branch not found or you do not have permission to delete it' });
+    }
+    res.status(204).send();
   } catch (err) {
     next(err);
   }

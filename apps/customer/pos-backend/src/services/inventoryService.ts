@@ -1,32 +1,51 @@
-import { PrismaClient, Prisma, Inventory } from '@prisma/client';
+import { PrismaClient, Prisma, Inventory, Role } from '@prisma/client';
+import { UserContextPayload } from '../types/custom'; // 1. IMPORT THE CORRECT TYPE
 
 const prisma = new PrismaClient();
 
-// List all non-deleted inventory records for a tenant
-export const listInventory = async (tenantId: string): Promise<Inventory[]> => {
+// 2. UPDATE ALL FUNCTION SIGNATURES to use the UserContextPayload
+export const listInventory = async (requestingUser: UserContextPayload): Promise<Inventory[]> => {
+  const whereClause: Prisma.InventoryWhereInput = {
+    tenantId: requestingUser.tenantId,
+    deleted: false,
+  };
+
+  if (requestingUser.role === Role.MANAGER) {
+    whereClause.branchId = requestingUser.branchId;
+  }
+
   return prisma.inventory.findMany({
-    where: { tenantId, deleted: false },
+    where: whereClause,
     include: { product: true, branch: true },
     orderBy: { product: { name: 'asc' } },
   });
 };
 
-// Get a single inventory record by its ID
-export const getInventoryById = async (id: number, tenantId: string): Promise<Inventory | null> => {
-  return prisma.inventory.findFirst({
-    where: { id, tenantId, deleted: false },
-  });
+export const getInventoryById = async (id: number, requestingUser: UserContextPayload): Promise<Inventory | null> => {
+  const whereClause: Prisma.InventoryWhereInput = {
+    id,
+    tenantId: requestingUser.tenantId,
+    deleted: false,
+  };
+
+  if (requestingUser.role === Role.MANAGER) {
+    whereClause.branchId = requestingUser.branchId;
+  }
+  
+  return prisma.inventory.findFirst({ where: whereClause });
 };
 
-// Create a new inventory record with validation
-export const createInventory = async (data: Prisma.InventoryUncheckedCreateInput, tenantId: string, createdById: number): Promise<Inventory> => {
-  const { productId, branchId, stock, reorderLevel } = data;
-  
+export const createInventory = async (data: Prisma.InventoryUncheckedCreateInput, requestingUser: UserContextPayload): Promise<Inventory> => {
+  let { productId, branchId, stock, reorderLevel } = data;
+
+  if (requestingUser.role === Role.MANAGER) {
+    branchId = requestingUser.branchId;
+  }
+
+  if (!branchId) throw new Error("Branch ID is required.");
+
   const numericStock = Number(stock);
   const numericReorderLevel = Number(reorderLevel) || 10;
-
-  // --- THIS IS THE FIX (Part 1) ---
-  // Enforce the new business rule on creation.
   if (numericReorderLevel > numericStock) {
     throw new Error("Validation failed: Reorder level cannot be greater than the stock quantity.");
   }
@@ -35,52 +54,54 @@ export const createInventory = async (data: Prisma.InventoryUncheckedCreateInput
     data: {
       stock: numericStock,
       reorderLevel: numericReorderLevel,
-      tenantId,
+      tenantId: requestingUser.tenantId,
       productId,
       branchId,
-      createdById,
+      createdById: requestingUser.id,
     },
   });
 };
 
-// Update an existing inventory record with validation
-export const updateInventory = async (id: number, data: any, tenantId: string): Promise<Inventory | null> => {
+export const updateInventory = async (id: number, data: any, requestingUser: UserContextPayload): Promise<Inventory | null> => {
   const { stock, reorderLevel } = data;
 
-  const dataToUpdate: Prisma.InventoryUpdateInput = {};
-  if (stock !== undefined) dataToUpdate.stock = Number(stock);
-  if (reorderLevel !== undefined) dataToUpdate.reorderLevel = Number(reorderLevel);
-
-  // --- THIS IS THE FIX (Part 2) ---
-  // To validate an update, we must know the final state of the record.
-  // 1. Fetch the existing record first.
-  const existingItem = await prisma.inventory.findFirst({ where: { id, tenantId } });
-  if (!existingItem) {
-    throw new Error("Inventory item not found.");
+  const whereClause: Prisma.InventoryWhereInput = { id, tenantId: requestingUser.tenantId };
+  if (requestingUser.role === Role.MANAGER) {
+      whereClause.branchId = requestingUser.branchId;
   }
 
-  // 2. Determine the final values after the update is applied.
-  const finalStock = dataToUpdate.stock !== undefined ? Number(dataToUpdate.stock) : existingItem.stock;
-  const finalReorderLevel = dataToUpdate.reorderLevel !== undefined ? Number(dataToUpdate.reorderLevel) : existingItem.reorderLevel;
+  const existingItem = await prisma.inventory.findFirst({ where: whereClause });
+  if (!existingItem) {
+    throw new Error("Inventory item not found or you do not have permission to edit it.");
+  }
 
-  // 3. Enforce the business rule.
+  const finalStock = stock !== undefined ? Number(stock) : existingItem.stock;
+  const finalReorderLevel = reorderLevel !== undefined ? Number(reorderLevel) : existingItem.reorderLevel;
   if (finalReorderLevel > finalStock) {
     throw new Error("Validation failed: Reorder level cannot be greater than the stock quantity.");
   }
 
-  // 4. If validation passes, proceed with the update.
   await prisma.inventory.updateMany({
-    where: { id, tenantId },
-    data: dataToUpdate,
+    where: { id: existingItem.id },
+    data: { stock: finalStock, reorderLevel: finalReorderLevel },
   });
 
-  return getInventoryById(id, tenantId);
+  return getInventoryById(id, requestingUser);
 };
 
-// Soft delete an inventory record
-export const deleteInventory = async (id: number, tenantId: string): Promise<{ count: number }> => {
+export const deleteInventory = async (id: number, requestingUser: UserContextPayload): Promise<{ count: number }> => {
+  const whereClause: Prisma.InventoryWhereInput = { id, tenantId: requestingUser.tenantId };
+  if (requestingUser.role === Role.MANAGER) {
+      whereClause.branchId = requestingUser.branchId;
+  }
+
+  const itemToDelete = await prisma.inventory.findFirst({ where: whereClause });
+  if (!itemToDelete) {
+      return { count: 0 };
+  }
+  
   return prisma.inventory.updateMany({
-    where: { id, tenantId },
+    where: { id: itemToDelete.id },
     data: { deleted: true },
   });
 };

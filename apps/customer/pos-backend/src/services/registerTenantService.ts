@@ -1,49 +1,33 @@
-import { Prisma, PrismaClient } from '@prisma/client';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import { PrismaClient } from '@prisma/client';
+import * as bcrypt from 'bcryptjs';
+import * as jwt from 'jsonwebtoken';
 
 const prisma = new PrismaClient();
-const JWT_SECRET = process.env.JWT_SECRET || 'changeme';
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
-export const registerTenantAndUser = async (tenantData: any, userData: any) => {
-  return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    // 1. Create tenant
-    const tenant = await tx.tenant.create({
-      data: {
-        ...tenantData,
-        deleted: false,
-      },
-    });
-
-    // 2. Create default branch
-    const branch = await tx.branch.create({
-      data: {
-        tenantId: tenant.id,
-        name: 'Main',
-        tag: 'main',
-        active: true,
-        deleted: false,
-       // createdById: null, // explicitly set to null for the first branch
-      },
-    });
-
-    // 3. Create master user
-    const hashedPassword = await bcrypt.hash(userData.password, 10);
-    const user = await tx.user.create({
-      data: {
-        name: userData.name,
-        email: userData.email,
-        password: hashedPassword,
-        tenantId: tenant.id,
-        role: 'ADMIN',
-        createdById: null,
-        branchId: branch.id,
-      },
-    });
-
-    // 4. Generate JWT
-    const token = jwt.sign({ userId: user.id, tenantId: tenant.id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
-
-    return { tenant, branch, user, token };
+export const registerTenant = async (tenantData: any, userData: any) => {
+  const tenant = await prisma.tenant.create({ 
+    data: { name: tenantData.name, subdomain: tenantData.subdomain } 
   });
-}; 
+
+  const mainBranch = await prisma.branch.create({ 
+    data: { name: 'Main', tag: 'Main', tenantId: tenant.id, createdById: undefined } 
+  });
+
+  const hashedPassword = await bcrypt.hash(userData.password, 10);
+  const user = await prisma.user.create({ 
+    data: { 
+      ...userData, 
+      password: hashedPassword, 
+      tenantId: tenant.id, 
+      branchId: mainBranch.id, 
+      role: 'ADMIN' 
+    } 
+  });
+
+  const tokenPayload = { id: user.id, tenantId: user.tenantId, role: user.role, branchId: user.branchId };
+  const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '1d' });
+
+  const { password: _, ...userResponse } = user;
+  return { token, user: userResponse, tenant };
+};

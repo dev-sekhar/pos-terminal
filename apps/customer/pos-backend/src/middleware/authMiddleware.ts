@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
+import * as jwt from 'jsonwebtoken'; // Corrected Import Syntax
+import { Role } from '@prisma/client';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
@@ -11,13 +12,13 @@ export default function authMiddleware(req: Request, res: Response, next: NextFu
 
   const token = authHeader.split(' ')[1];
   try {
-    // The type definition for the decoded payload is now implicitly understood by TypeScript
-    const decoded = jwt.verify(token, JWT_SECRET) as { id: string; tenantId: string };
+    const decoded = jwt.verify(token, JWT_SECRET) as { id: string; tenantId: string; role: Role; branchId: number };
     
-    // Attach the decoded payload to the request object. Our global type file makes this valid.
     req.user = {
       id: decoded.id,
-      tenantId: decoded.tenantId
+      tenantId: decoded.tenantId,
+      role: decoded.role,
+      branchId: decoded.branchId
     };
     next();
   } catch (err) {

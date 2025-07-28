@@ -1,52 +1,40 @@
-import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaClient, Prisma, User } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-// List all non-deleted categories for a tenant, including the user who created them
-export const listCategories = async (tenantId: string) => {
+export const listCategories = async (requestingUser: User) => {
   return prisma.productCategory.findMany({
-    where: { tenantId, deleted: false },
-    include: {
-      createdBy: { // Include the related User model
-        select: { name: true } // Only select the user's name
-      }
-    },
+    where: { tenantId: requestingUser.tenantId, deleted: false },
+    include: { createdBy: { select: { name: true } } },
     orderBy: { name: 'asc' },
   });
 };
 
-// Create a new category using precise Prisma types
-export const createCategory = async (data: { name: string, description?: string | null, createdById: number }, tenantId: string) => {
-  const { name, description, createdById } = data;
+export const createCategory = async (data: { name: string, description?: string | null }, requestingUser: User) => {
+  const { name, description } = data;
   return prisma.productCategory.create({
     data: {
-      name,
-      description,
-      tenant: { connect: { id: tenantId } },
-      createdBy: { connect: { id: createdById } }, // Connect via the relation
+      name, description,
+      tenant: { connect: { id: requestingUser.tenantId } },
+      createdBy: { connect: { id: requestingUser.id } },
     },
   });
 };
 
-// Get a single category by its ID for a specific tenant
-export const getCategoryById = async (id: number, tenantId: string) => {
+export const getCategoryById = async (id: number, requestingUser: User) => {
   return prisma.productCategory.findFirst({
-    where: { id, tenantId, deleted: false },
+    where: { id, tenantId: requestingUser.tenantId, deleted: false },
   });
 };
 
-// Update a category
-export const updateCategory = async (id: number, data: Prisma.ProductCategoryUpdateInput, tenantId: string) => {
-  return prisma.productCategory.updateMany({
-    where: { id, tenantId },
-    data,
-  }).then(() => getCategoryById(id, tenantId));
+export const updateCategory = async (id: number, data: Prisma.ProductCategoryUpdateInput, requestingUser: User) => {
+  await prisma.productCategory.updateMany({ where: { id, tenantId: requestingUser.tenantId }, data });
+  return getCategoryById(id, requestingUser);
 };
 
-// Soft delete a category
-export const deleteCategory = async (id: number, tenantId: string) => {
+export const deleteCategory = async (id: number, requestingUser: User) => {
   return prisma.productCategory.updateMany({
-    where: { id, tenantId },
+    where: { id, tenantId: requestingUser.tenantId },
     data: { deleted: true },
   });
 };

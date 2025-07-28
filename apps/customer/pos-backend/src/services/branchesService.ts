@@ -1,82 +1,96 @@
-import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaClient, Prisma, User, Role, Branch } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-// List all non-deleted branches for a tenant
-export const listBranches = async (tenantId: string) => {
+// List branches, scoped by the requesting user's role and branch
+export const listBranches = async (requestingUser: User): Promise<Branch[]> => {
+  const whereClause: Prisma.BranchWhereInput = {
+    tenantId: requestingUser.tenantId,
+    deleted: false,
+  };
+
+  if (requestingUser.role === Role.MANAGER) {
+    whereClause.id = requestingUser.branchId;
+  }
+
   return prisma.branch.findMany({
-    where: { tenantId, deleted: false },
+    where: whereClause,
     orderBy: { name: 'asc' },
   });
 };
 
-// Create a new branch
-export const createBranch = async (data: Prisma.BranchCreateWithoutTenantInput, tenantId: string) => {
-  // Use Prisma's generated types for safety, omitting fields we set manually
-  const { name, tag, location } = data;
+// Create a new branch (Admin only)
+export const createBranch = async (data: Prisma.BranchUncheckedCreateInput, requestingUser: User): Promise<Branch> => {
+  if (requestingUser.role !== Role.ADMIN) {
+    throw new Error('Forbidden: Only Administrators can create new branches.');
+  }
+  const { name, tag, location, active } = data;
   return prisma.branch.create({
     data: {
       name,
       tag,
       location,
-      tenant: { connect: { id: tenantId } },
-      // createdBy should come from the user's JWT, which can be added to the middleware
+      active,
+      tenantId: requestingUser.tenantId,
+      createdById: requestingUser.id,
     },
   });
 };
 
-// Get a single branch by its ID for a specific tenant
-export const getBranchById = async (id: number, tenantId: string) => {
-  return prisma.branch.findFirst({
-    where: { id, tenantId, deleted: false },
-  });
-};
+// Get a single branch, respecting branch scope for Managers
+export const getBranchById = async (id: number, requestingUser: User): Promise<Branch | null> => {
+  const whereClause: Prisma.BranchWhereInput = {
+    id,
+    tenantId: requestingUser.tenantId,
+    deleted: false,
+  };
 
-// Update a branch, now with the inventory transfer logic!
-export const updateBranch = async (id: number, data: Prisma.BranchUpdateInput, tenantId: string) => {
-  // If the branch is being deactivated...
-  if (data.active === false) {
-    // Find the 'Main' branch to transfer inventory to.
-    const mainBranch = await prisma.branch.findFirst({
-      where: { tenantId, tag: 'Main' }
-    });
-
-    if (!mainBranch) {
-      throw new Error("Cannot deactivate branch: 'Main' branch not found.");
-    }
-    if (mainBranch.id === id) {
-      throw new Error("'Main' branch cannot be deactivated.");
-    }
-    
-    // Use a transaction to safely move inventory and then deactivate the branch
-    return prisma.$transaction(async (tx) => {
-      // 1. Reassign all inventory items from the old branch to the main branch.
-      await tx.inventory.updateMany({
-        where: { tenantId, branchId: id },
-        data: { branchId: mainBranch.id }
-      });
-
-      // 2. Now, safely update the branch to be inactive.
-      const updatedBranch = await tx.branch.update({
-        where: { id },
-        data,
-      });
-
-      return updatedBranch;
-    });
+  if (requestingUser.role === Role.MANAGER) {
+    whereClause.id = requestingUser.branchId;
   }
 
-  // If not deactivating, just perform a normal update.
-  return prisma.branch.update({
-    where: { id },
-    data,
-  });
+  return prisma.branch.findFirst({ where: whereClause });
 };
 
+// Update a branch, respecting branch scope for Managers
+export const updateBranch = async (id: number, data: Prisma.BranchUpdateInput, requestingUser: User): Promise<Branch | null> => {
+  const branchToUpdate = await getBranchById(id, requestingUser);
+  if (!branchToUpdate) {
+    throw new Error("Branch not found or you do not have permission to edit it.");
+  }
+  
+  if (data.active === false) {
+    const mainBranch = await prisma.branch.findFirst({
+      where: { tenantId: requestingUser.tenantId, tag: 'Main' }
+    });
+    if (!mainBranch) throw new Error("Cannot deactivate branch: 'Main' branch not found.");
+    if (mainBranch.id === id) throw new Error("'Main' branch cannot be deactivated.");
+    
+    await prisma.$transaction(async (tx) => {
+      await tx.inventory.updateMany({
+        where: { tenantId: requestingUser.tenantId, branchId: id },
+        data: { branchId: mainBranch.id }
+      });
+      await tx.branch.update({ where: { id }, data });
+    });
+    return getBranchById(id, requestingUser);
+  }
+  
+  await prisma.branch.updateMany({ where: { id, tenantId: requestingUser.tenantId }, data });
+  return getBranchById(id, requestingUser);
+};
+
+// --- THIS IS THE FIX ---
 // Soft delete a branch
-export const deleteBranch = async (id: number, tenantId: string) => {
+// The function signature is corrected to return Promise<{ count: number }>
+export const deleteBranch = async (id: number, requestingUser: User): Promise<{ count: number }> => {
+  const branchToDelete = await getBranchById(id, requestingUser);
+  if (!branchToDelete) {
+    return { count: 0 }; // Return a count of 0 if nothing was found to delete
+  }
+  // The result of updateMany, which is { count: number }, is now correctly returned
   return prisma.branch.updateMany({
-    where: { id, tenantId },
+    where: { id: branchToDelete.id, tenantId: requestingUser.tenantId },
     data: { deleted: true },
   });
 };

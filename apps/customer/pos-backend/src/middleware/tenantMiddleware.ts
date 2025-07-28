@@ -1,23 +1,11 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express'; // Use the standard types
 
-// // Extend the User type to include tenantId
-// declare global {
-//   namespace Express {
-//     interface User {
-//       tenantId?: string;
-//     }
-//     interface Request {
-//       tenant?: { id: string };
-//     }
-//   }
-// }
-
+// The function signature now uses the default Express types
 export default function tenantMiddleware(req: Request, res: Response, next: NextFunction) {
-  // Use tenantId from authenticated user context
   if (req.user && req.user.tenantId) {
     req.tenant = { id: req.user.tenantId };
     next();
   } else {
-    res.status(400).json({ error: 'Tenant context missing from user session' });
+    res.status(401).json({ message: 'Tenant context could not be determined from user session.' });
   }
 }

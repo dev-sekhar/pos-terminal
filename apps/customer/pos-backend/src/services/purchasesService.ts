@@ -1,108 +1,106 @@
-import { PrismaClient, Prisma, Purchase } from '@prisma/client';
+import { PrismaClient, Prisma, Purchase, Role } from '@prisma/client';
+import { UserContextPayload } from '../types/custom';
 
 const prisma = new PrismaClient();
 
-// List all non-deleted purchases for a tenant, including related data
-export const listPurchases = async (tenantId: string): Promise<Purchase[]> => {
+// List purchases, scoped for Managers
+export const listPurchases = async (requestingUser: UserContextPayload): Promise<Purchase[]> => {
+  const whereClause: Prisma.PurchaseWhereInput = {
+    tenantId: requestingUser.tenantId,
+    deleted: false,
+  };
+
+  if (requestingUser.role === Role.MANAGER) {
+    whereClause.branchId = requestingUser.branchId;
+  }
+
   return prisma.purchase.findMany({
-    where: { tenantId, deleted: false },
-    include: {
-      items: { include: { product: true } },
-      supplier: true,
-      branch: true,
-      createdBy: true,
-    },
+    where: whereClause,
+    include: { items: { include: { product: true } }, supplier: true, branch: true, createdBy: true, },
     orderBy: { datetime: 'desc' },
   });
 };
 
-// Get a single purchase by its ID
-export const getPurchaseById = async (id: number, tenantId: string): Promise<Purchase | null> => {
+// Get a single purchase, scoped for Managers
+export const getPurchaseById = async (id: number, requestingUser: UserContextPayload): Promise<Purchase | null> => {
+  const whereClause: Prisma.PurchaseWhereInput = {
+    id, tenantId: requestingUser.tenantId, deleted: false
+  };
+
+  if (requestingUser.role === Role.MANAGER) {
+    whereClause.branchId = requestingUser.branchId;
+  }
+
   return prisma.purchase.findFirst({
-    where: { id, tenantId, deleted: false },
+    where: whereClause,
     include: { items: { include: { product: true } }, supplier: true, branch: true },
   });
 };
 
-// Create a new purchase and its items in a single transaction
-export const createPurchase = async (data: any, tenantId: string, createdById: number): Promise<Purchase> => {
-  const { supplierId, branchId, poNumber, datetime, items } = data;
+// Create a new purchase, scoped for Managers
+export const createPurchase = async (data: any, requestingUser: UserContextPayload): Promise<Purchase> => {
+  let { supplierId, branchId, poNumber, datetime, items } = data;
 
+  if (requestingUser.role === Role.MANAGER) {
+    branchId = requestingUser.branchId;
+  }
+  if (!branchId) throw new Error("Branch ID is required.");
   if (!Array.isArray(items) || items.length === 0) {
     throw new Error("A purchase must have at least one item.");
   }
 
-  // The total is now 0 by default, as prices are not yet known.
-  const total = 0;
-
   return prisma.$transaction(async (tx) => {
     const newPurchase = await tx.purchase.create({
       data: {
-        poNumber,
-        datetime: new Date(datetime),
-        total, // Initially 0
-        tenant: { connect: { id: tenantId } },
-        supplier: { connect: { id: supplierId } },
-        branch: { connect: { id: branchId } },
-        createdBy: { connect: { id: createdById } },
+        poNumber, datetime: new Date(datetime), total: 0,
+        tenantId: requestingUser.tenantId,
+        supplierId,
+        branchId,
+        createdById: requestingUser.id,
       }
     });
 
-    // Create the nested purchase items, which now only require productId and quantity.
-    // Price will default to 0 as defined in the schema.
     const itemsToCreate = items.map((item: { productId: number; quantity: number }) => ({
       productId: item.productId,
       quantity: item.quantity,
-      tenantId,
+      tenantId: requestingUser.tenantId,
       purchaseId: newPurchase.id,
     }));
     
-    await tx.purchaseItem.createMany({
-      data: itemsToCreate,
-    });
-
-    // We must return the created purchase object from the transaction block.
-    // It's good practice to re-fetch it to include relations.
-    const result = await tx.purchase.findUnique({
-        where: { id: newPurchase.id },
-        include: { items: true }
-    });
-
-    if (!result) {
-        throw new Error("Failed to create or find the purchase after transaction.");
-    }
-
+    await tx.purchaseItem.createMany({ data: itemsToCreate });
+    const result = await tx.purchase.findUnique({ where: { id: newPurchase.id }, include: { items: true } });
+    if (!result) throw new Error("Failed to create purchase.");
     return result;
   });
 };
 
-// Soft delete a purchase
-export const deletePurchase = async (id: number, tenantId: string): Promise<{ count: number }> => {
+// Soft delete a purchase, scoped for Managers
+export const deletePurchase = async (id: number, requestingUser: UserContextPayload): Promise<{ count: number }> => {
+  const purchaseToDelete = await getPurchaseById(id, requestingUser);
+  if (!purchaseToDelete) {
+    return { count: 0 };
+  }
   return prisma.purchase.updateMany({
-    where: { id, tenantId },
+    where: { id: purchaseToDelete.id },
     data: { deleted: true },
   });
 };
 
-// Generate a new, unique PO Number for the tenant
-export const generateNewPONumber = async (tenantId: string): Promise<string> => {
+// Generate a PO number (no RBAC needed, just tenant context)
+export const generateNewPONumber = async (requestingUser: UserContextPayload): Promise<string> => {
     const today = new Date();
-    const datePart = today.toISOString().slice(0, 10).replace(/-/g, ''); // YYYYMMDD
+    const datePart = today.toISOString().slice(0, 10).replace(/-/g, '');
     const prefix = `PO-${datePart}-`;
 
     const lastPurchase = await prisma.purchase.findFirst({
-        where: { tenantId, poNumber: { startsWith: prefix } },
+        where: { tenantId: requestingUser.tenantId, poNumber: { startsWith: prefix } },
         orderBy: { poNumber: 'desc' },
     });
 
     let nextNum = 1;
     if (lastPurchase) {
-        // Safely parse the last part of the PO number
-        const lastNumPart = lastPurchase.poNumber.split('-')[2];
-        const lastNum = parseInt(lastNumPart, 10);
-        if (!isNaN(lastNum)) {
-            nextNum = lastNum + 1;
-        }
+        const lastNum = parseInt(lastPurchase.poNumber.split('-')[2], 10);
+        if (!isNaN(lastNum)) nextNum = lastNum + 1;
     }
     return `${prefix}${String(nextNum).padStart(3, '0')}`;
 };

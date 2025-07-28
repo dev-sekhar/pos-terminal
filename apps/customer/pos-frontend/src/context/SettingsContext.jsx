@@ -1,5 +1,12 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
-import { useUser } from './UserContext';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+} from "react";
+import { useUser } from "./UserContext";
 
 const SettingsContext = createContext();
 
@@ -8,18 +15,23 @@ export const useSettings = () => useContext(SettingsContext);
 export const SettingsProvider = ({ children }) => {
   const { user } = useUser();
   const [settings, setSettings] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false); // Default to false
+  const [error, setError] = useState("");
 
   const callApi = useCallback(async (url, options = {}) => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
     if (!token) throw new Error("No token found");
     const response = await fetch(url, {
       ...options,
-      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
     });
     if (!response.ok) {
-      const errData = await response.json().catch(() => ({ message: 'An unknown error occurred' }));
+      const errData = await response
+        .json()
+        .catch(() => ({ message: "An unknown error occurred" }));
       throw new Error(errData.message);
     }
     return response.json();
@@ -27,19 +39,30 @@ export const SettingsProvider = ({ children }) => {
 
   useEffect(() => {
     const fetchSettings = async () => {
-      if (!user) {
-        setSettings(null); // Clear settings on logout
+      // --- THIS IS THE FIX ---
+      // 1. Define which roles are allowed to even try fetching settings.
+      const allowedRoles = ["ADMIN", "MANAGER"];
+
+      // 2. Check the user's role. If they are not logged in or not in an allowed role, do nothing.
+      if (!user || !allowedRoles.includes(user.role)) {
+        setSettings(null); // Ensure settings are cleared for unauthorized roles
         setLoading(false);
-        return;
+        return; // Exit early
       }
+      // --- END OF FIX ---
+
       setLoading(true);
-      setError('');
+      setError("");
       try {
-        const data = await callApi('/api/settings');
-        console.log("✅ Settings loaded successfully in context:", data);
+        const data = await callApi("/api/settings");
+        console.log(
+          "✅ Settings loaded successfully for authorized user:",
+          data
+        );
         setSettings(data);
       } catch (err) {
         setError(err.message);
+        console.error("❌ Failed to load settings:", err);
       } finally {
         setLoading(false);
       }
@@ -47,24 +70,30 @@ export const SettingsProvider = ({ children }) => {
     fetchSettings();
   }, [user, callApi]);
 
-  // This function allows the Settings page to update the context and the backend
-  const updateSettings = useCallback(async (newSettings) => {
-    try {
-      const updated = await callApi('/api/settings', { method: 'PUT', body: JSON.stringify(newSettings) });
-      setSettings(updated); // Update the state with the response from the server
-    } catch (err) {
-      setError(err.message);
-      // Optionally re-fetch to revert optimistic update
-    }
-  }, [callApi]);
+  const updateSettings = useCallback(
+    async (newSettings) => {
+      try {
+        const updated = await callApi("/api/settings", {
+          method: "PUT",
+          body: JSON.stringify(newSettings),
+        });
+        setSettings(updated);
+      } catch (err) {
+        setError(err.message);
+      }
+    },
+    [callApi]
+  );
 
-  // useMemo prevents unnecessary re-renders of all consuming components
-  const value = useMemo(() => ({
-    settings,
-    updateSettings, // Provide the update function to components
-    loading,
-    error,
-  }), [settings, updateSettings, loading, error]);
+  const value = useMemo(
+    () => ({
+      settings,
+      updateSettings,
+      loading,
+      error,
+    }),
+    [settings, updateSettings, loading, error]
+  );
 
   return (
     <SettingsContext.Provider value={value}>

@@ -1,9 +1,9 @@
-import { PrismaClient, Prisma, Product } from '@prisma/client';
-import { getSettings } from './settingsService'; // 1. IMPORT the settings service
+import { PrismaClient, Prisma, Role } from '@prisma/client';
+import { getSettings } from './settingsService';
+import { UserContextPayload } from '../types/custom'; // 1. IMPORT THE CORRECT TYPE
 
 const prisma = new PrismaClient();
 
-// Define a precise type for our sales data
 const saleWithItemsAndProducts = Prisma.validator<Prisma.SaleDefaultArgs>()({
   include: { items: { include: { product: true } } },
 });
@@ -17,22 +17,46 @@ const calculateSaleValue = (sale: SaleWithProductItems): number => {
   }, 0);
 };
 
-// Main service function to get all dashboard metrics
-export const getDashboardMetrics = async (tenantId: string) => {
-  // 2. Fetch the tenant's settings first.
-  const settings = await getSettings(tenantId);
+// 2. UPDATE THE FUNCTION SIGNATURE to use the UserContextPayload
+export const getDashboardMetrics = async (requestingUser: UserContextPayload) => {
+  const { tenantId, role, branchId } = requestingUser;
+  
+  // The getSettings service now also needs to be updated to accept the payload
+  const settings = await getSettings(requestingUser);
 
-
-  const today = new Date();
-  const startOfToday = new Date(today.setHours(0, 0, 0, 0));
-  const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-  const startOfYear = new Date(today.getFullYear(), 0, 1);
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const startOfYear = new Date(now.getFullYear(), 0, 1);
+  
+  // --- THIS IS THE RBAC LOGIC ---
+  // Create a base 'where' clause that can be modified
+  const salesWhereClause: Prisma.SaleWhereInput = {
+      tenantId,
+      deleted: false,
+  };
+  // If the user is a Manager, add a branch filter to all queries
+  if (role === Role.MANAGER) {
+      salesWhereClause.branchId = branchId;
+  }
+  // --- END RBAC LOGIC ---
 
   const includeClause = { items: { include: { product: true } } };
 
-  const salesToday = await prisma.sale.findMany({ where: { tenantId, createdAt: { gte: startOfToday } }, include: includeClause });
-  const salesThisMonth = await prisma.sale.findMany({ where: { tenantId, createdAt: { gte: startOfMonth } }, include: includeClause });
-  const salesThisYear = await prisma.sale.findMany({ where: { tenantId, createdAt: { gte: startOfYear } }, include: includeClause });
+  const salesToday = await prisma.sale.findMany({
+    where: { ...salesWhereClause, createdAt: { gte: startOfToday } },
+    include: includeClause,
+  });
+  
+  const salesThisMonth = await prisma.sale.findMany({
+    where: { ...salesWhereClause, createdAt: { gte: startOfMonth } },
+    include: includeClause,
+  });
+  
+  const salesThisYear = await prisma.sale.findMany({
+    where: { ...salesWhereClause, createdAt: { gte: startOfYear } },
+    include: includeClause,
+  });
 
   const totalToday = salesToday.reduce((sum, sale) => sum + calculateSaleValue(sale), 0);
 
@@ -65,18 +89,13 @@ export const getDashboardMetrics = async (tenantId: string) => {
       .map(([name, value]) => ({ name, value: value.toFixed(2) }));
   };
 
-  const topToday = getTopProducts(salesToday);
-  const topMonth = getTopProducts(salesThisMonth);
-  const topYear = getTopProducts(salesThisYear);
-
   return {
     totalToday,
     mtdData,
     fytdData,
-    topToday,
-    topMonth,
-    topYear,
-    // 3. Use the currency from the fetched settings in the response.
+    topToday: getTopProducts(salesToday),
+    topMonth: getTopProducts(salesThisMonth),
+    topYear: getTopProducts(salesThisYear),
     currency: settings.currency,
   };
 };

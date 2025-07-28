@@ -4,9 +4,17 @@ import * as registerTenantService from '../services/registerTenantService';
 export const registerTenant = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { tenant, user } = req.body;
-    const result = await registerTenantService.registerTenantAndUser(tenant, user);
+
+    if (!tenant || !user || !tenant.name || !tenant.subdomain || !user.name || !user.email || !user.password) {
+      return res.status(400).json({ message: 'Missing required tenant or user information for registration.' });
+    }
+    
+    // The service now handles all logic and returns the login payload
+    const result = await registerTenantService.registerTenant(tenant, user);
+    
     res.status(201).json(result);
+
   } catch (err) {
     next(err);
   }
-}; 
+};
