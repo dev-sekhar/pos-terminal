@@ -67,20 +67,14 @@ const calcTotal = (items, basketDiscount = 0) => {
   return Math.round((subtotal - discountAmt) * 100) / 100;
 };
 
+import "../styles/Sales.css";
+
 const BillPrint = React.forwardRef(({ sale, settings }, ref) => {
   if (!sale || !settings) return null;
   return (
-    <div
-      ref={ref}
-      style={{
-        fontFamily: "monospace",
-        width: 350,
-        margin: "0 auto",
-        padding: 16,
-      }}
-    >
-      <h2 style={{ textAlign: "center", margin: 0 }}>POS Terminal</h2>
-      <div style={{ fontSize: 13, marginBottom: 8 }}>
+    <div ref={ref} className="bill-print">
+      <h2 className="bill-print-header">POS Terminal</h2>
+      <div className="bill-print-info">
         <div>
           <strong>Invoice:</strong> {sale.invoice}
         </div>
@@ -91,14 +85,7 @@ const BillPrint = React.forwardRef(({ sale, settings }, ref) => {
           <strong>Payment:</strong> {sale.paymentType}
         </div>
       </div>
-      <table
-        style={{
-          width: "100%",
-          fontSize: 13,
-          borderCollapse: "collapse",
-          marginBottom: 8,
-        }}
-      >
+      <table className="bill-print-table">
         <thead>
           <tr>
             <th align="left">Item</th>
@@ -119,8 +106,8 @@ const BillPrint = React.forwardRef(({ sale, settings }, ref) => {
             ))}
         </tbody>
       </table>
-      <div style={{ borderTop: "1px dashed #888", margin: "8px 0" }}></div>
-      <div style={{ fontSize: 13, textAlign: "right" }}>
+      <div className="bill-print-divider"></div>
+      <div className="bill-print-totals">
         <div>
           <strong>Subtotal:</strong> {settings.currency}{" "}
           {calcSubtotal(sale.items).toFixed(2)}
@@ -183,11 +170,12 @@ const Sales = () => {
       setLoading(true);
       setError("");
       try {
-        const [salesData, inventoryData, branchesData] = await Promise.all([
-          callApi("/api/sales"),
-          callApi("/api/inventory"),
-          callApi("/api/branches"),
-        ]);
+        const [salesData, inventoryData, branchesData] =
+          await Promise.all([
+            callApi("/api/sales"),
+            callApi("/api/inventory"),
+            callApi("/api/branches"),
+          ]);
         setSales(salesData || []);
         setInventory(inventoryData || []);
         setBranches(branchesData || []);
@@ -285,7 +273,7 @@ const Sales = () => {
       ...f,
       items: [...f.items, { productId: "", quantity: 1, discount: 0, tax: 0 }],
     }));
-  };
+  }
   const handleRemoveItem = (idx) =>
     setForm((f) => ({ ...f, items: f.items.filter((_, i) => i !== idx) }));
 

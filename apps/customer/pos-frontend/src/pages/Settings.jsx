@@ -96,7 +96,7 @@ const Settings = () => {
           sx={{ mt: 2, minWidth: 240 }}
           disabled={!isAdmin}
         />
-        <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column' }}>
+        <Box sx={{ mt: 2, display: "flex", flexDirection: "column" }}>
           <Box>
             <Button variant="contained" component="label" disabled={!isAdmin}>
               Upload Logo
@@ -126,7 +126,8 @@ const Settings = () => {
             )}
           </Box>
           <Typography variant="caption" sx={{ mt: 1 }}>
-            Supported formats: JPG, PNG, SVG. Max size: 1MB. Recommended dimensions: 200x200 pixels.
+            Supported formats: JPG, PNG, SVG. Max size: 1MB. Recommended
+            dimensions: 200x200 pixels.
           </Typography>
         </Box>
       </Paper>

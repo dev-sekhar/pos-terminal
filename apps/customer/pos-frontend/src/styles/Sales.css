@@ -1,0 +1,33 @@
+.bill-print {
+  font-family: monospace;
+  width: 350px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.bill-print-header {
+  text-align: center;
+  margin: 0;
+}
+
+.bill-print-info {
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.bill-print-table {
+  width: 100%;
+  font-size: 13px;
+  border-collapse: collapse;
+  margin-bottom: 8px;
+}
+
+.bill-print-divider {
+  border-top: 1px dashed #888;
+  margin: 8px 0;
+}
+
+.bill-print-totals {
+  font-size: 13px;
+  text-align: right;
+}
