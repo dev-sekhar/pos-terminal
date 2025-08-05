@@ -2,8 +2,9 @@ import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
+// CORRECT IMPORT: We only need Prisma and PrismaClient.
 import { Prisma, PrismaClient } from '@prisma/client';
-import listEndpoints from 'express-list-endpoints'; // Keep this for now
+import listEndpoints from 'express-list-endpoints';
 
 // --- IMPORT YOUR ROUTE AND MIDDLEWARE HANDLERS ---
 import authRoutes from './routes/auth';
@@ -25,7 +26,7 @@ import settingsRoutes from './routes/settings';
 // --- INITIALIZE APP ---
 dotenv.config();
 const app: Express = express();
-const prisma = new PrismaClient();
+// const prisma = new PrismaClient();
 
 // --- GLOBAL MIDDLEWARE (WITHOUT AUTH) ---
 app.use(helmet());
@@ -33,7 +34,6 @@ app.use(cors());
 app.use(express.json());
 
 // --- START: ULTIMATE REQUEST LOGGER ---
-// This will log every single request that hits the Node.js server.
 app.use('*', (req, res, next) => {
   console.log(`[NODE RECEIVED]: ${req.method} ${req.originalUrl}`);
   next();
@@ -41,14 +41,11 @@ app.use('*', (req, res, next) => {
 // --- END: ULTIMATE REQUEST LOGGER ---
 
 // --- PUBLIC ROUTES ---
-// These are registered BEFORE any auth middleware is applied.
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
-app.use('/api/auth', authRoutes); // LOGIN ROUTE IS HERE
+app.use('/api/auth', authRoutes);
 app.use('/api/register-tenant', registerTenantRoutes);
 
-
 // --- PROTECTED ROUTES ---
-// The auth and tenant middleware are combined and applied ONLY to the routes below.
 const protectedMiddleware = [authMiddleware, tenantMiddleware];
 
 app.use('/api/users', protectedMiddleware, userRoutes);
@@ -63,19 +60,32 @@ app.use('/api/tenants', protectedMiddleware, tenantsRoutes);
 app.use('/api/dashboard', protectedMiddleware, dashboardRoutes);
 app.use('/api/settings', protectedMiddleware, settingsRoutes);
 
-
-
 // --- GLOBAL ERROR HANDLER (must be last) ---
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
-  console.error("[ERROR HANDLER]", err); // Add logging here
+  console.error("[ERROR HANDLER]", err);
+  
+  // CORRECT SYNTAX: After running `prisma generate`, this check will now work.
   if (err instanceof Prisma.PrismaClientKnownRequestError) {
+    let statusCode = 400;
     let message = 'A database error occurred.';
-    if (err.code === 'P2002') message = 'A record with this unique value already exists.';
-    if (err.code === 'P2025') message = 'Record not found.';
-    return res.status(400).json({ message });
+
+    if (err.code === 'P2002') {
+      statusCode = 409; 
+      const fields = (err.meta?.target as string[])?.join(', ');
+      message = `A record with this value already exists. Field: ${fields}`;
+    }
+
+    if (err.code === 'P2025') {
+      statusCode = 404;
+      message = 'The requested record was not found.';
+    }
+    
+    return res.status(statusCode).json({ message });
   }
+
+  // Fallback for all other errors
   res.status(500).json({
-    message: err.message || 'Something went wrong!',
+    message: err.message || 'An internal server error occurred.',
     error: process.env.NODE_ENV === 'development' ? err.stack : undefined,
   });
 });

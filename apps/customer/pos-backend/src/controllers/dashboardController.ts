@@ -1,27 +1,31 @@
 import { Request, Response, NextFunction } from 'express';
+import { AuthenticatedRequest } from '../types/express';
 import * as dashboardService from '../services/dashboardService';
-import { UserContextPayload } from '../types/custom';
-import { Role } from '@prisma/client';
+// We no longer need prisma in the controller.
 
-// This is the correct, safe helper function.
-const getUserFromRequest = (req: Request): UserContextPayload => {
-    const user = req.user;
-    if (!user) {
-        throw new Error('User context is missing from the request session.');
-    }
-    return {
-        id: Number(user.id),
-        tenantId: user.tenantId,
-        role: user.role,
-        branchId: user.branchId,
-    };
+/**
+ * Creates the UserContextPayload object that the service layer expects.
+ * It combines the user info from the JWT (via authMiddleware) with the
+ * tenant's DATABASE ID (via tenantMiddleware).
+ * @param req The authenticated request object.
+ * @returns The context payload for the service layer.
+ */
+const createServiceContext = (req: AuthenticatedRequest) => {
+  return {
+    ...req.user,
+    // This is the critical fix: use the tenant's database ID, not the subdomain.
+    tenantId: req.tenant.id,
+  };
 };
+
+
+// --- Controller Function ---
 
 export const getMetrics = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const requestingUser = getUserFromRequest(req);
-    // This call is now fully type-safe and does not use any unsafe casting.
-    const metrics = await dashboardService.getDashboardMetrics(requestingUser);
+    const context = createServiceContext(req as AuthenticatedRequest);
+    // The dashboard service will use the user's role and branchId from the context to return the correct data
+    const metrics = await dashboardService.getDashboardMetrics(context);
     res.json(metrics);
   } catch (err) {
     next(err);

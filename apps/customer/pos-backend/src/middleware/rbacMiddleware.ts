@@ -1,23 +1,38 @@
-import { Request, Response, NextFunction } from 'express';
-import { Role } from '@prisma/client'; // Import the Role enum from your generated client
+import { Request, Response, NextFunction } from 'express'; // Import standard types
+import { AuthenticatedRequest } from '../types/express';
+import { getUserPermissions, Role } from '@pos-terminal/permissions';
 
-// This is a higher-order function. It takes the allowed roles and returns a middleware function.
-export const checkRoles = (allowedRoles: Role[]) => {
+/**
+ * Creates an Express middleware for Role-Based Access Control (RBAC).
+ *
+ * @param requiredPermission The permission string required to access the route.
+ * @returns An Express middleware function.
+ */
+export const rbacMiddleware = (requiredPermission: string) => {
+  // THIS IS THE FIX: The returned function must use the standard (req: Request) signature.
   return (req: Request, res: Response, next: NextFunction) => {
-    // req.user is attached by the authMiddleware from the JWT payload
-    const userRole = req.user?.role as Role;
+    
+    // We perform a type assertion here to access our custom properties safely.
+    const authReq = req as AuthenticatedRequest;
+    const user = authReq.user;
 
-    if (!userRole) {
-      // This should not happen if authMiddleware is working, but it's a good safeguard.
-      return res.status(403).json({ message: 'Forbidden: User role not found in session.' });
+    // This should be caught by authMiddleware, but as a safeguard:
+    if (!user) {
+      return res.status(401).json({ message: 'Authentication details not found.' });
     }
 
-    // Check if the user's role is in the list of roles allowed to access this route
-    if (allowedRoles.includes(userRole)) {
-      next(); // Role is allowed, proceed to the next handler
+    // Get the full list of permissions for the user's role from our shared package
+    const userPermissions = getUserPermissions(user.role as Role);
+
+    // Check if the user's list of permissions includes the one required for this route
+    if (userPermissions.includes(requiredPermission)) {
+      // User has permission, proceed to the next handler (the controller)
+      return next();
     } else {
-      // Role is not allowed, send a "Forbidden" error
-      res.status(403).json({ message: 'Forbidden: You do not have permission to perform this action.' });
+      // User does not have permission, deny access
+      return res.status(403).json({ 
+        message: 'Forbidden: You do not have permission to perform this action.' 
+      });
     }
   };
 };

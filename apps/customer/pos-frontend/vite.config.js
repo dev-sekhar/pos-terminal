@@ -1,16 +1,38 @@
-// vite.config.js
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
   server: {
-    // This is correct. Vite should only bind to the local network interface.
     host: "127.0.0.1",
     port: 5173,
-
-    // This is the FIX. We are whitelisting any subdomain of lvh.me.
-    // The leading dot is a wildcard for all subdomains.
-    allowedHosts: [".lvh.me"],
+    allowedHosts: [".lvh.me", "lvh.me"],
+    proxy: {
+      "/api": {
+        target: "http://127.0.0.1:3000",
+        changeOrigin: true,
+        // --- ADD THIS LOGGING BLOCK ---
+        configure: (proxy, options) => {
+          proxy.on("proxyReq", (proxyReq, req, res) => {
+            console.log(
+              "[VITE PROXY] Sending request to backend:",
+              req.method,
+              req.url
+            );
+            console.log("             Target:", options.target);
+          });
+          proxy.on("proxyRes", (proxyRes, req, res) => {
+            console.log(
+              "[VITE PROXY] Received response from backend:",
+              proxyRes.statusCode,
+              req.url
+            );
+          });
+          proxy.on("error", (err, req, res) => {
+            console.error("[VITE PROXY] Error:", err);
+          });
+        },
+      },
+    },
   },
 });

@@ -2,8 +2,9 @@
   "name": "pos-terminal",
   "private": true,
   "workspaces": [
-    "customer/*",
-    "platform/*"
+    "apps/customer/*",
+    "apps/platform/*",
+    "packages/*"
   ],
   "dependencies": {
     "@prisma/client": "^6.12.0",

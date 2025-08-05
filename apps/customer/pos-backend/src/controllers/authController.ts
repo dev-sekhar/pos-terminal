@@ -1,9 +1,10 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import * as jwt from 'jsonwebtoken';
+import { getUserPermissions } from '@pos-terminal/permissions';
+import prisma from '../lib/prisma'; // FIX 1: Use the shared prisma client
+import { AuthenticatedRequest } from '../types/express'; // FIX 2: Import the AuthenticatedRequest type
 
-const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 export const login = async (req: Request, res: Response) => {
@@ -18,7 +19,8 @@ export const login = async (req: Request, res: Response) => {
     if (!tenant) {
       return res.status(404).json({ message: 'Tenant not found.' });
     }
-
+    
+    // In our schema, the User's tenantId is a string, matching the Tenant's ID type.
     const user = await prisma.user.findUnique({ 
       where: { tenantId_email: { tenantId: tenant.id, email } } 
     });
@@ -27,17 +29,19 @@ export const login = async (req: Request, res: Response) => {
       return res.status(401).json({ message: 'Invalid credentials.' });
     }
 
- 
     const tokenPayload = { 
       id: user.id, 
-      tenantId: user.tenantId, 
+      tenantId: user.tenantId, // This is the string ID
       role: user.role,
-      branchId: user.branchId
+      branchId: user.branchId 
     };
 
     const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '1d' });
 
-    console.log(`[SUCCESS] User ${email} logged in with role ${user.role} for branch ${user.branchId}.`);
+    const userAccessList = getUserPermissions(user.role);
+    console.log(`[AUTH SUCCESS] User '${user.email}' logged in.`);
+    console.log(`             ROLE: ${user.role}`);
+    console.log(`             ACCESS GRANTED:`, userAccessList);
 
     const { password: _, ...userResponse } = user;
 
@@ -48,7 +52,39 @@ export const login = async (req: Request, res: Response) => {
     });
 
   } catch (error) {
-    console.error('[ERROR] An unexpected error occurred during login:', error);
+    console.error('[AUTH ERROR] An unexpected error occurred during login:', error);
     res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// --- FIX 3: A complete and secure getProfile function ---
+export const getProfile = async (req: Request, res: Response) => {
+  // authMiddleware has already run, so we can safely cast the type.
+  const authReq = req as AuthenticatedRequest;
+  
+  try {
+    // Fetch the user's profile from the database using the ID from the token.
+    // Explicitly select fields to ensure the password is never returned.
+    const userProfile = await prisma.user.findUnique({ 
+      where: { id: authReq.user.id },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        branchId: true,
+        tenantId: true,
+        createdAt: true,
+        updatedAt: true,
+      }
+    });
+
+    if (!userProfile) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json(userProfile);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch user profile.' });
   }
 };

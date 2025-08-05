@@ -1,0 +1,44 @@
+.print-layout {
+  font-family: 'Courier New', Courier, monospace; /* Classic receipt font */
+  width: 80mm;
+  padding: 2mm;
+  color: #000;
+  background: #fff;
+}
+
+.print-header {
+  text-align: center;
+  margin: 0 0 5px 0;
+  font-size: 16px;
+}
+
+.print-company-name {
+  font-size: 10px;
+  text-align: center;
+  margin: 0 0 5px 0;
+}
+
+.print-divider {
+  border-top: 1px dashed #000;
+  margin: 5px 0;
+}
+
+.print-info, .print-totals {
+  font-size: 12px;
+  margin-bottom: 5px;
+}
+
+.print-info > div, .print-totals > div {
+  display: flex;
+  justify-content: space-between;
+}
+
+.print-table {
+  width: 100%;
+  font-size: 11px;
+  border-collapse: collapse;
+}
+
+.print-table th, .print-table td {
+  padding: 2px 1px;
+}

@@ -7,30 +7,55 @@ import {
   Alert,
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react"; // 1. Import useEffect
 import GoogleIcon from "@mui/icons-material/Google";
 import FacebookIcon from "@mui/icons-material/Facebook";
 import { useTenant } from "../context/TenantContext";
-import { useUser } from "../context/UserContext"; // 1. IMPORT THE useUser HOOK
+import { useUser } from "../context/UserContext";
 
 const Login = () => {
   const navigate = useNavigate();
   const { setTenantAndLock } = useTenant();
-  const { setUser } = useUser(); // 2. GET THE setUser FUNCTION FROM THE CONTEXT
+  const { user, setUser } = useUser(); // 2. Get the user object as well
 
   const [showRegister, setShowRegister] = useState(false);
   const [registerForm, setRegisterForm] = useState({
-    /* ... */
+    tenantName: "",
+    subdomain: "",
+    name: "",
+    email: "",
+    password: "",
   });
   const [registerError, setRegisterError] = useState("");
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
   const [loginError, setLoginError] = useState("");
 
+  // 3. This effect handles navigation safely after state has been updated.
+  useEffect(() => {
+    // If the user object exists in the context, it means login/registration was successful.
+    // Now it is safe to navigate to the dashboard.
+    if (user) {
+      navigate("/dashboard");
+    }
+  }, [user, navigate]); // This runs only when the user state changes.
+
+  // 4. Create a helper to handle success logic, reducing duplication.
+  const handleAuthSuccess = (data) => {
+    // Store auth data in localStorage
+    localStorage.setItem("token", data.token);
+    localStorage.setItem("tenantId", data.tenant.id);
+    localStorage.setItem("tenantName", data.tenant.name);
+    localStorage.setItem("user", JSON.stringify(data.user));
+
+    // Update global context state. This will trigger the useEffect hook.
+    if (setTenantAndLock) setTenantAndLock(data.tenant.name);
+    setUser(data.user);
+  };
+
   const handleLogin = async () => {
     setLoginError("");
     const subdomain = window.location.hostname.split(".")[0];
     const payload = { ...loginForm, subdomain };
-    console.log("Attempting to log in with payload:", payload);
 
     try {
       const res = await fetch("/api/auth/login", {
@@ -41,22 +66,8 @@ const Login = () => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Login failed");
 
-      console.log("Login successful, server response:", data);
-
-      // Store auth data in localStorage
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("tenantId", data.tenant.id);
-      localStorage.setItem("tenantName", data.tenant.name);
-      localStorage.setItem("user", JSON.stringify(data.user)); // Still useful for page refresh
-
-      // --- THIS IS THE FIX ---
-      // 3. UPDATE THE GLOBAL CONTEXT STATE
-      // This immediately informs the rest of the app about the new user.
-      setUser(data.user);
-      // --- END OF FIX ---
-
-      if (setTenantAndLock) setTenantAndLock(data.tenant.name);
-      navigate("/dashboard");
+      // 5. Call the centralized success handler.
+      handleAuthSuccess(data);
     } catch (err) {
       setLoginError(err.message);
     }
@@ -83,16 +94,8 @@ const Login = () => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Registration failed");
 
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("tenantId", data.tenant.id);
-      localStorage.setItem("tenantName", data.tenant.name);
-      localStorage.setItem("user", JSON.stringify(data.user));
-
-      // Also update the context on registration
-      setUser(data.user);
-
-      if (setTenantAndLock) setTenantAndLock(data.tenant.name);
-      navigate("/dashboard");
+      // 6. Call the centralized success handler.
+      handleAuthSuccess(data);
     } catch (err) {
       setRegisterError(err.message);
     }

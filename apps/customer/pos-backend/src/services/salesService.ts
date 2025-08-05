@@ -1,17 +1,18 @@
-import { PrismaClient, Prisma, Sale, Inventory, Product, Role } from '@prisma/client';
+import { PrismaClient, Prisma, Sale, Role } from '@prisma/client';
 import { UserContextPayload } from '../types/custom';
-
-const prisma = new PrismaClient();
+import prisma from '../lib/prisma';
 
 // List sales, securely scoped by the requesting user's role and branch
 export const listSales = async (requestingUser: UserContextPayload) => {
+  const { tenantId, role, branchId } = requestingUser;
+
   const whereClause: Prisma.SaleWhereInput = {
-    tenantId: requestingUser.tenantId,
+    tenantId: tenantId,
     deleted: false,
   };
 
-  if (requestingUser.role === Role.MANAGER) {
-    whereClause.branchId = requestingUser.branchId;
+  if (role !== Role.ADMIN) {
+    whereClause.branchId = branchId;
   }
 
   return prisma.sale.findMany({
@@ -26,16 +27,18 @@ export const listSales = async (requestingUser: UserContextPayload) => {
   });
 };
 
-// Get a single sale by its ID, respecting branch scope for Managers
+// Get a single sale by its ID, respecting branch scope for non-admins
 export const getSaleById = async (id: number, requestingUser: UserContextPayload) => {
+    const { tenantId, role, branchId } = requestingUser;
+    
     const whereClause: Prisma.SaleWhereInput = {
         id,
-        tenantId: requestingUser.tenantId,
+        tenantId: tenantId,
         deleted: false,
     };
 
-    if (requestingUser.role === Role.MANAGER) {
-        whereClause.branchId = requestingUser.branchId;
+    if (role !== Role.ADMIN) {
+        whereClause.branchId = branchId;
     }
     
     return prisma.sale.findFirst({
@@ -92,6 +95,8 @@ export const createSale = async (data: any, requestingUser: UserContextPayload):
     }, 0);
     const finalTotal = total * (1 - (Number(discount || 0) / 100));
 
+    // --- THIS IS THE CRITICAL FIX ---
+    // The call to create a new Sale must have all its fields nested inside a `data` object.
     const newSale = await tx.sale.create({
       data: {
         invoice,
@@ -128,23 +133,23 @@ export const createSale = async (data: any, requestingUser: UserContextPayload):
   });
 };
 
-// Soft delete a sale, respecting branch scope for Managers
+// Soft delete a sale, respecting branch scope for non-admins
 export const deleteSale = async (id: number, requestingUser: UserContextPayload) => {
+  const { tenantId, role, branchId } = requestingUser;
   const whereClause: Prisma.SaleWhereInput = {
       id,
-      tenantId: requestingUser.tenantId
+      tenantId: tenantId
   };
-
-  if (requestingUser.role === Role.MANAGER) {
-      whereClause.branchId = requestingUser.branchId;
+  if (role !== Role.ADMIN) {
+      whereClause.branchId = branchId;
   }
   
   const saleToDelete = await prisma.sale.findFirst({ where: whereClause });
   if (!saleToDelete) {
-      return { count: 0 };
+      return null;
   }
 
-  return prisma.sale.updateMany({
+  return prisma.sale.update({
     where: { id: saleToDelete.id },
     data: { deleted: true }
   });

@@ -1,43 +1,72 @@
-// NOTE: We define roles as simple strings here. We cannot import `Role` from
-// `@prisma/client` because that would make this a backend-only package.
-// This is safe because both frontend and backend will import from this file.
+// Define the user roles as a TypeScript type for strictness
+export type Role = 'ADMIN' | 'MANAGER' | 'CASHIER';
 
-export const ROLES = {
-  ADMIN: 'ADMIN',
-  MANAGER: 'MANAGER',
-  CASHIER: 'CASHIER',
-} as const; // 'as const' makes these values read-only and type-safe
+// Define all possible permission strings
+// This helps with autocompletion and prevents typos
+const PERMISSIONS = {
+  // Tenant-level management
+  MANAGE_USERS: 'manage:users',
+  MANAGE_SETTINGS: 'manage:settings',
+  MANAGE_BRANCHES: 'manage:branches',
+  
+  // Data Management (can be branch-scoped)
+  MANAGE_PRODUCTS: 'manage:products',
+  MANAGE_CATEGORIES: 'manage:categories',
+  MANAGE_SUPPLIERS: 'manage:suppliers',
+  MANAGE_INVENTORY: 'manage:inventory',
+  MANAGE_PURCHASES: 'manage:purchases',
+  
+  // Sales
+  CREATE_SALES: 'create:sales',
+  
+  // Reporting
+  VIEW_REPORTS: 'view:reports',
+  VIEW_DASHBOARD: 'view:dashboard',
+} as const; // "as const" makes these values readonly and specific strings
 
-// This is our new single source of truth for all permissions.
-export const permissions = {
-  // UI Visibility Permissions
-  VIEW_SALES: [ROLES.ADMIN, ROLES.MANAGER, ROLES.CASHIER],
-  VIEW_PURCHASES: [ROLES.ADMIN, ROLES.MANAGER],
-  VIEW_INVENTORY: [ROLES.ADMIN, ROLES.MANAGER, ROLES.CASHIER],
-  VIEW_PRODUCTS: [ROLES.ADMIN, ROLES.MANAGER, ROLES.CASHIER],
-  VIEW_SUPPLIERS: [ROLES.ADMIN, ROLES.MANAGER],
-  VIEW_BRANCHES: [ROLES.ADMIN],
-  VIEW_REPORTS: [ROLES.ADMIN, ROLES.MANAGER],
-  VIEW_USERS: [ROLES.ADMIN, ROLES.MANAGER],
-  VIEW_SETTINGS: [ROLES.ADMIN],
-
-  // Action Permissions
-  MANAGE_USERS: [ROLES.ADMIN],
-  MANAGE_BRANCHES: [ROLES.ADMIN], // Only admins can create/delete branches now
-  MANAGE_PRODUCTS: [ROLES.ADMIN],
-  MANAGE_CATEGORIES: [ROLES.ADMIN],
-  MANAGE_INVENTORY: [ROLES.ADMIN, ROLES.MANAGER],
-  MANAGE_PURCHASES: [ROLES.ADMIN, ROLES.MANAGER],
-  MANAGE_SUPPLIERS: [ROLES.ADMIN, ROLES.MANAGER],
-  MANAGE_SETTINGS: [ROLES.ADMIN],
-  CREATE_SALES: [ROLES.ADMIN, ROLES.MANAGER, ROLES.CASHIER],
-  MANAGE_SALES_RECORDS: [ROLES.ADMIN, ROLES.MANAGER], // e.g., deleting a sale
+// Map roles to their specific permissions
+// This is the core logic we are centralizing
+const rolePermissions: Record<Role, string[]> = {
+  ADMIN: [
+    PERMISSIONS.MANAGE_USERS,
+    PERMISSIONS.MANAGE_SETTINGS,
+    PERMISSIONS.MANAGE_BRANCHES,
+    PERMISSIONS.MANAGE_PRODUCTS,
+    PERMISSIONS.MANAGE_CATEGORIES,
+    PERMISSIONS.MANAGE_SUPPLIERS,
+    PERMISSIONS.MANAGE_INVENTORY,
+    PERMISSIONS.MANAGE_PURCHASES,
+    PERMISSIONS.CREATE_SALES,
+    PERMISSIONS.VIEW_REPORTS,
+    PERMISSIONS.VIEW_DASHBOARD,
+  ],
+  MANAGER: [
+    PERMISSIONS.MANAGE_PRODUCTS,
+    PERMISSIONS.MANAGE_CATEGORIES,
+    PERMISSIONS.MANAGE_SUPPLIERS,
+    PERMISSIONS.MANAGE_INVENTORY,
+    PERMISSIONS.MANAGE_PURCHASES,
+    PERMISSIONS.CREATE_SALES,
+    PERMISSIONS.VIEW_REPORTS,
+    PERMISSIONS.VIEW_DASHBOARD,
+  ],
+  CASHIER: [
+    PERMISSIONS.CREATE_SALES,
+    PERMISSIONS.VIEW_DASHBOARD, // A cashier might see a simple personal dashboard
+  ],
 };
 
-// This is a helper function that can now be safely used on BOTH frontend and backend.
-export const can = (userRole: string | undefined, permission: keyof typeof permissions): boolean => {
-  if (!userRole) return false;
-  const allowedRoles = permissions[permission];
-  if (!allowedRoles) return false; // Default to deny if permission is not defined
-  return (allowedRoles as readonly string[]).includes(userRole);
+/**
+ * Gets the list of permission strings for a given user role.
+ * @param role The role of the user ('ADMIN', 'MANAGER', 'CASHIER')
+ * @returns An array of permission strings.
+ */
+export const getUserPermissions = (role?: Role): string[] => {
+  if (!role) {
+    return [];
+  }
+  return rolePermissions[role] || [];
 };
+
+// Also export the permissions object itself in case you need to reference a specific permission string
+export { PERMISSIONS };

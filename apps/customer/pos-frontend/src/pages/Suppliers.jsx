@@ -1,48 +1,66 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Box, Typography, Paper, Table, TableHead, TableRow, TableCell, TableBody, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, IconButton, FormControlLabel, Switch, Chip, Alert, CircularProgress } from '@mui/material';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
-import { useTenant } from '../context/TenantContext';
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  Box,
+  Typography,
+  Paper,
+  Table,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableBody,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  IconButton,
+  FormControlLabel,
+  Switch,
+  Chip,
+  Alert,
+  CircularProgress,
+} from "@mui/material";
+import DeleteIcon from "@mui/icons-material/Delete";
+import { useTenant } from "../context/TenantContext";
 
-const initialFormState = { name: '', contact: '', email: '', address: '', active: true };
+// --- FIX 1: Import our centralized API utility ---
+import { authenticatedFetch } from "../utils/api";
+
+const initialFormState = {
+  name: "",
+  contact: "",
+  email: "",
+  address: "",
+  active: true,
+};
 
 const Suppliers = () => {
   const { tenant } = useTenant();
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  
+  const [error, setError] = useState("");
+
   const [open, setOpen] = useState(false);
-  // We remove isEditing as editing global suppliers is a separate feature
   const [currentSupplier, setCurrentSupplier] = useState(initialFormState);
-  
+
   const [formErrors, setFormErrors] = useState([]);
 
-  const callApi = useCallback(async (url, options = {}) => {
-    const token = localStorage.getItem('token');
-    const response = await fetch(url, {
-      ...options,
-      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', ...options.headers },
-    });
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({ message: 'An unknown error occurred' }));
-      throw new Error(errData.message);
-    }
-    return response.status === 204 ? null : response.json();
-  }, []);
+  // --- FIX 2: Remove the local `callApi` function ---
 
   const fetchSuppliers = useCallback(async () => {
     setLoading(true);
-    setError('');
+    setError("");
     try {
-      const data = await callApi('/api/suppliers');
+      // --- FIX 3: Use authenticatedFetch for data fetching ---
+      const data = await authenticatedFetch("/api/suppliers");
       setSuppliers(data);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [callApi]);
+  }, []);
 
   useEffect(() => {
     if (tenant) fetchSuppliers();
@@ -53,24 +71,30 @@ const Suppliers = () => {
     setFormErrors([]);
     setOpen(true);
   };
-  
+
   const handleClose = () => setOpen(false);
 
-  const handleChange = e => {
+  const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setCurrentSupplier(s => ({ ...s, [name]: type === 'checkbox' ? checked : value }));
+    setCurrentSupplier((s) => ({
+      ...s,
+      [name]: type === "checkbox" ? checked : value,
+    }));
   };
 
   const handleSave = async () => {
     if (!currentSupplier.name) {
-      setFormErrors(['Supplier Name is required.']);
+      setFormErrors(["Supplier Name is required."]);
       return;
     }
     setFormErrors([]);
 
     try {
-      // The POST endpoint now handles the "create or link" logic automatically
-      await callApi('/api/suppliers', { method: 'POST', body: JSON.stringify(currentSupplier) });
+      // --- FIX 4: Use authenticatedFetch for saving data ---
+      await authenticatedFetch("/api/suppliers", {
+        method: "POST",
+        body: JSON.stringify(currentSupplier),
+      });
       handleClose();
       fetchSuppliers();
     } catch (err) {
@@ -79,67 +103,133 @@ const Suppliers = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to remove this supplier from your list?')) return;
+    if (
+      !window.confirm(
+        "Are you sure you want to remove this supplier from your list?"
+      )
+    )
+      return;
     try {
-      // The DELETE endpoint now handles "unlinking"
-      await callApi(`/api/suppliers/${id}`, { method: 'DELETE' });
+      // --- FIX 5: Use authenticatedFetch for deleting data ---
+      await authenticatedFetch(`/api/suppliers/${id}`, { method: "DELETE" });
       fetchSuppliers();
     } catch (err) {
       setError(err.message);
     }
   };
-  
+
   if (loading) return <CircularProgress />;
   if (error) return <Alert severity="error">{error}</Alert>;
 
   return (
     <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+      <Box
+        display="flex"
+        justifyContent="space-between"
+        alignItems="center"
+        mb={2}
+      >
         <Typography variant="h4">Suppliers</Typography>
-        <Button variant="contained" onClick={handleOpen}>Add Supplier</Button>
+        <Button variant="contained" onClick={handleOpen}>
+          Add Supplier
+        </Button>
       </Box>
       <Paper>
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell>Name</TableCell><TableCell>Contact</TableCell><TableCell>Email</TableCell><TableCell>Status</TableCell><TableCell>Actions</TableCell>
+              <TableCell>Name</TableCell>
+              <TableCell>Contact</TableCell>
+              <TableCell>Email</TableCell>
+              <TableCell>Status</TableCell>
+              <TableCell>Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {suppliers.map(s => (
+            {suppliers.map((s) => (
               <TableRow key={s.id}>
                 <TableCell>{s.name}</TableCell>
                 <TableCell>{s.contact}</TableCell>
                 <TableCell>{s.email}</TableCell>
                 <TableCell>
-                  {s.active ? <Chip label="Active" color="success" /> : <Chip label="Inactive" color="default" />}
+                  {s.active ? (
+                    <Chip label="Active" color="success" />
+                  ) : (
+                    <Chip label="Inactive" color="default" />
+                  )}
                 </TableCell>
                 <TableCell>
-                  {/* <IconButton title="Edit Supplier (Admin Feature)"><EditIcon /></IconButton> */}
-                  <IconButton onClick={() => handleDelete(s.id)} color="error" title="Remove Supplier"><DeleteIcon /></IconButton>
+                  <IconButton
+                    onClick={() => handleDelete(s.id)}
+                    color="error"
+                    title="Remove Supplier"
+                  >
+                    <DeleteIcon />
+                  </IconButton>
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </Paper>
-      
+
       <Dialog open={open} onClose={handleClose}>
         <DialogTitle>Add Supplier</DialogTitle>
         <DialogContent>
-          {formErrors.length > 0 && <Alert severity="error" sx={{ mb: 2 }}>{formErrors.join(', ')}</Alert>}
-          <TextField margin="dense" label="Supplier Name" name="name" value={currentSupplier.name} onChange={handleChange} fullWidth autoFocus />
-          <TextField margin="dense" label="Contact" name="contact" value={currentSupplier.contact} onChange={handleChange} fullWidth />
-          <TextField margin="dense" label="Email" name="email" value={currentSupplier.email} onChange={handleChange} fullWidth />
-          <TextField margin="dense" label="Address" name="address" value={currentSupplier.address} onChange={handleChange} fullWidth />
+          {formErrors.length > 0 && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {formErrors.join(", ")}
+            </Alert>
+          )}
+          <TextField
+            margin="dense"
+            label="Supplier Name"
+            name="name"
+            value={currentSupplier.name}
+            onChange={handleChange}
+            fullWidth
+            autoFocus
+          />
+          <TextField
+            margin="dense"
+            label="Contact"
+            name="contact"
+            value={currentSupplier.contact}
+            onChange={handleChange}
+            fullWidth
+          />
+          <TextField
+            margin="dense"
+            label="Email"
+            name="email"
+            value={currentSupplier.email}
+            onChange={handleChange}
+            fullWidth
+          />
+          <TextField
+            margin="dense"
+            label="Address"
+            name="address"
+            value={currentSupplier.address}
+            onChange={handleChange}
+            fullWidth
+          />
           <FormControlLabel
-            control={<Switch checked={currentSupplier.active} onChange={handleChange} name="active" />}
+            control={
+              <Switch
+                checked={currentSupplier.active}
+                onChange={handleChange}
+                name="active"
+              />
+            }
             label="Active"
           />
         </DialogContent>
         <DialogActions>
           <Button onClick={handleClose}>Cancel</Button>
-          <Button onClick={handleSave} variant="contained">Add Supplier</Button>
+          <Button onClick={handleSave} variant="contained">
+            Add Supplier
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>

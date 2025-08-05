@@ -1,74 +1,91 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { useTenant } from './TenantContext';
-
-const DEFAULT_BRANCHES = ['Main', 'Branch A'];
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useMemo,
+} from "react";
+import { useUser } from "./UserContext";
+import { authenticatedFetch } from "../utils/api";
 
 const BranchContext = createContext();
+export const useBranch = () => useContext(BranchContext);
 
-export function useBranch() {
-  return useContext(BranchContext);
-}
+export const BranchProvider = ({ children }) => {
+  const { user } = useUser();
 
-export function BranchProvider({ children }) {
-  const { tenant } = useTenant();
+  const [branch, setBranch] = useState(null);
   const [branches, setBranches] = useState([]);
-  const [branch, setBranch] = useState(() => {
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    if (user.branch && typeof user.branch === 'object') {
-      return user.branch.name || user.branch.tag || '';
-    }
-    if (user.branch && typeof user.branch === 'string') {
-      return user.branch;
-    }
-    return '';
-  });
   const [branchLocked, setBranchLocked] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    const saved = localStorage.getItem(`${tenant}_branchesData`);
-    let branchList = [];
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        branchList = parsed.filter(b => b.active && !b.deleted).map(b => b.tag);
-      } catch {
-        branchList = [];
-      }
-    }
-    if (user.role && user.role.toUpperCase() === 'ADMIN') {
-      setBranches(branchList);
-      setBranch(branchList[0]);
-      setBranchLocked(false);
-    } else if (user.branch) {
-      if (typeof user.branch === 'object') {
-        setBranches([user.branch.name || user.branch.tag || '']);
-        setBranch(user.branch.name || user.branch.tag || '');
+    const initializeBranchState = async () => {
+      // Only proceed if a user is logged in.
+      if (user) {
+        setLoading(true);
+        setError("");
+        try {
+          // --- THIS IS THE CRITICAL LOGIC ---
+          if (user.role === "ADMIN") {
+            // Admins can see all branches. Call the general endpoint.
+            console.log("User is ADMIN, fetching all branches...");
+            const branchesData = await authenticatedFetch("/api/branches");
+            setBranches(branchesData || []);
+
+            const defaultBranch =
+              branchesData.find((b) => b.name === "Main") || branchesData[0];
+            setBranch(defaultBranch);
+            setBranchLocked(false);
+            console.log("Admin branches loaded.", branchesData);
+          } else {
+            // Managers and Cashiers can only see their OWN branch.
+            // Call our new, specific endpoint.
+            console.log("User is not Admin, fetching their specific branch...");
+            const myBranchData = await authenticatedFetch(
+              "/api/branches/my-branch"
+            );
+
+            // The list of branches for them is just an array with their one branch.
+            setBranches(myBranchData ? [myBranchData] : []);
+
+            // Their default branch IS their only branch.
+            setBranch(myBranchData || null);
+            setBranchLocked(true); // They are locked to this branch.
+            console.log("User branch loaded.", myBranchData);
+          }
+        } catch (err) {
+          console.error("Failed to initialize branch state:", err.message);
+          setError(err.message);
+        } finally {
+          setLoading(false);
+        }
       } else {
-        setBranches([user.branch]);
-        setBranch(user.branch);
+        // If the user logs out, clear all branch state.
+        setBranch(null);
+        setBranches([]);
+        setBranchLocked(false);
+        setError("");
       }
-      setBranchLocked(true);
-    } else {
-      setBranches(branchList.length ? branchList : DEFAULT_BRANCHES);
-      setBranch(branchList.length ? branchList[0] : DEFAULT_BRANCHES[0]);
-      setBranchLocked(false);
-    }
-  }, [tenant]);
+    };
 
-  useEffect(() => {
-    localStorage.setItem('branch', branch);
-  }, [branch]);
+    initializeBranchState();
+  }, [user]); // Dependency array ensures this runs only when `user` changes.
 
-  useEffect(() => {
-    if (branchLocked) {
-      setBranches([branch]);
-    }
-  }, [branch, branchLocked]);
+  const value = useMemo(
+    () => ({
+      branch,
+      setBranch,
+      branches,
+      branchLocked,
+      loading,
+      error,
+    }),
+    [branch, branches, branchLocked, loading, error]
+  );
 
   return (
-    <BranchContext.Provider value={{ branch, setBranch, branches, setBranches, branchLocked }}>
-      {children}
-    </BranchContext.Provider>
+    <BranchContext.Provider value={value}>{children}</BranchContext.Provider>
   );
-} 
+};

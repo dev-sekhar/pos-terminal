@@ -1,12 +1,16 @@
 import { Router } from 'express';
 import * as suppliersController from '../controllers/suppliersController';
+import { rbacMiddleware } from '../middleware/rbacMiddleware';
+import { PERMISSIONS } from '@pos-terminal/permissions';
 
 const router = Router();
 
-// Define the routes for suppliers
-// These will match the endpoints defined in the suppliersController
-router.get('/', suppliersController.listSuppliers);
-router.post('/', suppliersController.createSupplier);
-router.delete('/:id', suppliersController.deleteSupplier);
+// Protect all supplier routes with the 'manage:suppliers' permission.
+// According to our central config, this is available to ADMIN and MANAGER roles.
+router.get('/', rbacMiddleware(PERMISSIONS.MANAGE_SUPPLIERS), suppliersController.listSuppliers);
+
+router.post('/', rbacMiddleware(PERMISSIONS.MANAGE_SUPPLIERS), suppliersController.createSupplier);
+
+router.delete('/:id', rbacMiddleware(PERMISSIONS.MANAGE_SUPPLIERS), suppliersController.deleteSupplier);
 
 export default router;

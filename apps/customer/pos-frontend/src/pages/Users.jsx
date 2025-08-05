@@ -28,6 +28,9 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import { useTenant } from "../context/TenantContext";
 import { useUser } from "../context/UserContext";
 
+// --- FIX 1: Import our centralized API utility ---
+import { authenticatedFetch } from "../utils/api";
+
 const initialFormState = {
   name: "",
   email: "",
@@ -49,33 +52,17 @@ const Users = () => {
   const [currentUser, setCurrentUser] = useState(initialFormState);
   const [formErrors, setFormErrors] = useState([]);
 
-  const callApi = useCallback(async (url, options = {}) => {
-    const token = localStorage.getItem("token");
-    if (!token) throw new Error("No token found");
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-    });
-    if (!response.ok) {
-      const errData = await response
-        .json()
-        .catch(() => ({ message: "An unknown error occurred" }));
-      throw new Error(errData.message);
-    }
-    return response.status === 204 ? null : response.json();
-  }, []);
+  // --- FIX 2: Remove the local `callApi` function ---
 
   const fetchData = useCallback(async () => {
     if (!tenant) return;
     setLoading(true);
     setError("");
     try {
+      // --- FIX 3: Use authenticatedFetch for parallel data fetching ---
       const [usersData, branchesData] = await Promise.all([
-        callApi("/api/users"),
-        callApi("/api/branches"),
+        authenticatedFetch("/api/users"),
+        authenticatedFetch("/api/branches"),
       ]);
       setUsers(usersData || []);
       setBranches(branchesData || []);
@@ -84,7 +71,7 @@ const Users = () => {
     } finally {
       setLoading(false);
     }
-  }, [tenant, callApi]);
+  }, [tenant]);
 
   useEffect(() => {
     fetchData();
@@ -92,7 +79,6 @@ const Users = () => {
 
   const handleOpen = (user = null) => {
     setIsEditing(!!user);
-    // --- THIS IS THE FIX (Part 1): Ensure branchId is never undefined when setting state ---
     const formState = user
       ? {
           id: user.id,
@@ -127,7 +113,8 @@ const Users = () => {
     const url = isEditing ? `/api/users/${currentUser.id}` : "/api/users";
 
     try {
-      await callApi(url, { method, body: JSON.stringify(payload) });
+      // --- FIX 4: Use authenticatedFetch for saving data ---
+      await authenticatedFetch(url, { method, body: JSON.stringify(payload) });
       handleClose();
       fetchData();
     } catch (err) {
@@ -138,7 +125,8 @@ const Users = () => {
   const handleDelete = async (id) => {
     if (!window.confirm("Are you sure?")) return;
     try {
-      await callApi(`/api/users/${id}`, { method: "DELETE" });
+      // --- FIX 5: Use authenticatedFetch for deleting data ---
+      await authenticatedFetch(`/api/users/${id}`, { method: "DELETE" });
       fetchData();
     } catch (err) {
       setError(err.message);
@@ -256,7 +244,6 @@ const Users = () => {
           </FormControl>
           <FormControl margin="dense" fullWidth>
             <InputLabel>Branch</InputLabel>
-            {/* --- THIS IS THE FIX (Part 2): Ensure value is never null/undefined --- */}
             <Select
               label="Branch"
               name="branchId"

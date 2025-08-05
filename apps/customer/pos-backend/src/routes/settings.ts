@@ -1,16 +1,17 @@
 import { Router } from 'express';
 import * as settingsController from '../controllers/settingsController';
-import { checkRoles } from '../middleware/rbacMiddleware';
-import { Role } from '@prisma/client';
+import { rbacMiddleware } from '../middleware/rbacMiddleware';
+import { PERMISSIONS } from '@pos-terminal/permissions';
 
 const router = Router();
 
-// --- THIS IS THE FIX ---
+// According to our central permissions config:
+// - VIEW_REPORTS is available to ADMIN and MANAGER.
+// - MANAGE_SETTINGS is available only to ADMIN.
+// This perfectly matches the intended security model.
 
-// Admins and Managers can VIEW the settings
-router.get('/', checkRoles([Role.ADMIN, Role.MANAGER]), settingsController.getSettings);
+router.get('/', rbacMiddleware(PERMISSIONS.VIEW_REPORTS), settingsController.getSettings);
 
-// Only Admins can UPDATE the settings
-router.put('/', checkRoles([Role.ADMIN]), settingsController.updateSettings);
+router.put('/', rbacMiddleware(PERMISSIONS.MANAGE_SETTINGS), settingsController.updateSettings);
 
 export default router;

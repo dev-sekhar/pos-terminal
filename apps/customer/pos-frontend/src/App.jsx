@@ -1,61 +1,149 @@
-import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import React from "react";
+import { Routes, Route, Navigate, Outlet } from "react-router-dom";
+import { CircularProgress, Box } from "@mui/material";
+import { useUser } from "./context/UserContext";
+import { PERMISSIONS } from "@pos-terminal/permissions"; // 1. Import the PERMISSIONS object
 
-import { TenantProvider } from './context/TenantContext';
-import { BranchProvider } from './context/BranchContext';
-import { UserProvider } from './context/UserContext';
-import { SettingsProvider } from './context/SettingsContext';
-import MainLayout from './layout/MainLayout';
-import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import Branches from './pages/Branches';
-import ProductCategories from './pages/ProductCategories';
-import Products from './pages/Products';
-import Inventory from './pages/Inventory';
-import Purchases from './pages/Purchases';
-import Sales from './pages/Sales';
-import Suppliers from './pages/Suppliers';
-import Users from './pages/Users';
-import Settings from './pages/Settings';
-import Reports from './pages/Reports'; // 1. IMPORT THE REPORTS COMPONENT
+// Import your pages and layouts
+import MainLayout from "./layout/MainLayout";
+import Login from "./pages/Login";
+import Dashboard from "./pages/Dashboard";
+import Branches from "./pages/Branches";
+import ProductCategories from "./pages/ProductCategories";
+import Products from "./pages/Products";
+import Inventory from "./pages/Inventory";
+// import Purchases from "./pages/Purchases";
+// import Sales from "./pages/Sales";
+// After (The new import)
+import Purchases from "./pages/purchases"; // Ensure this path matches your file structure
+import Sales from "./pages/sales"; // Or './pages/sales/index.jsx'
+import Suppliers from "./pages/Suppliers";
+import Users from "./pages/Users";
+import Settings from "./pages/Settings";
+import Reports from "./pages/Reports";
+import ProtectedRoute from "./components/ProtectedRoute"; // 2. Import our new component
+
+const AuthWrapper = () => {
+  const { user, loading } = useUser();
+  if (loading) {
+    return (
+      <Box
+        display="flex"
+        justifyContent="center"
+        alignItems="center"
+        height="100vh"
+      >
+        <CircularProgress />
+      </Box>
+    );
+  }
+  return user ? <Outlet /> : <Navigate to="/login" />;
+};
 
 function App() {
-  const token = localStorage.getItem('token');
-
   return (
-    <TenantProvider>
-      <BranchProvider>
-        <UserProvider>
-          <SettingsProvider>
-            <Routes>
-              <Route path="/login" element={<Login />} />
-              
-              <Route path="/" element={token ? <MainLayout /> : <Navigate to="/login" />}>
-                <Route index element={<Navigate to="/dashboard" />} /> 
-                <Route path="dashboard" element={<Dashboard />} />
-                <Route path="branches" element={<Branches />} />
-                
-                {/* --- 2. FIX THE CATEGORIES PATH --- */}
-                <Route path="product-categories" element={<ProductCategories />} />
-                
-                <Route path="products" element={<Products />} />
-                <Route path="inventory" element={<Inventory />} />
-                <Route path="purchases" element={<Purchases />} />
-                <Route path="sales" element={<Sales />} />
-                <Route path="suppliers" element={<Suppliers />} />
-                <Route path="users" element={<Users />} />
-                <Route path="settings" element={<Settings />} />
+    <Routes>
+      <Route path="/login" element={<Login />} />
 
-                {/* --- 3. ADD THE MISSING REPORTS PATH --- */}
-                <Route path="reports" element={<Reports />} />
-              </Route>
+      <Route element={<AuthWrapper />}>
+        <Route path="/" element={<MainLayout />}>
+          <Route index element={<Navigate to="/dashboard" />} />
 
-              <Route path="*" element={<Navigate to={token ? "/" : "/login"} />} />
-            </Routes>
-          </SettingsProvider>
-        </UserProvider>
-      </BranchProvider>
-    </TenantProvider>
+          {/* --- 3. APPLY PERMISSION-BASED ROUTING --- */}
+
+          {/* Accessible to ADMIN, MANAGER, CASHIER */}
+          <Route
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.VIEW_DASHBOARD} />
+            }
+          >
+            <Route path="dashboard" element={<Dashboard />} />
+          </Route>
+          <Route
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.CREATE_SALES} />
+            }
+          >
+            <Route path="sales" element={<Sales />} />
+          </Route>
+
+          {/* Accessible to ADMIN, MANAGER */}
+          <Route
+            element={
+              <ProtectedRoute
+                requiredPermission={PERMISSIONS.MANAGE_PRODUCTS}
+              />
+            }
+          >
+            <Route path="products" element={<Products />} />
+            <Route path="product-categories" element={<ProductCategories />} />
+          </Route>
+          <Route
+            element={
+              <ProtectedRoute
+                requiredPermission={PERMISSIONS.MANAGE_INVENTORY}
+              />
+            }
+          >
+            <Route path="inventory" element={<Inventory />} />
+          </Route>
+          <Route
+            element={
+              <ProtectedRoute
+                requiredPermission={PERMISSIONS.MANAGE_PURCHASES}
+              />
+            }
+          >
+            <Route path="purchases" element={<Purchases />} />
+          </Route>
+          <Route
+            element={
+              <ProtectedRoute
+                requiredPermission={PERMISSIONS.MANAGE_SUPPLIERS}
+              />
+            }
+          >
+            <Route path="suppliers" element={<Suppliers />} />
+          </Route>
+          <Route
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.VIEW_REPORTS} />
+            }
+          >
+            <Route path="reports" element={<Reports />} />
+          </Route>
+
+          {/* Accessible only to ADMIN */}
+          <Route
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.MANAGE_USERS} />
+            }
+          >
+            <Route path="users" element={<Users />} />
+          </Route>
+          <Route
+            element={
+              <ProtectedRoute
+                requiredPermission={PERMISSIONS.MANAGE_BRANCHES}
+              />
+            }
+          >
+            <Route path="branches" element={<Branches />} />
+          </Route>
+          <Route
+            element={
+              <ProtectedRoute
+                requiredPermission={PERMISSIONS.MANAGE_SETTINGS}
+              />
+            }
+          >
+            <Route path="settings" element={<Settings />} />
+          </Route>
+        </Route>
+      </Route>
+
+      <Route path="*" element={<Navigate to="/dashboard" />} />
+    </Routes>
   );
 }
 

@@ -6,7 +6,12 @@
     "moduleResolution": "Node",
     "outDir": "dist",
     "rootDir": "src",
-    "typeRoots": ["./src/types", "./node_modules/@types"]
+    "typeRoots": ["./src/types", "./node_modules/@types"],
+        "baseUrl": "./", // This is required for paths to work
+    "paths": {
+      "@pos-terminal/permissions": ["../../packages/permissions"],
+      "@pos-terminal/permissions/*": ["../../packages/permissions/*"]
+    }
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules"],

@@ -23,9 +23,11 @@ const Header = () => {
   const { branch, setBranch, branches, branchLocked } = useBranch();
   const { tenant, setTenant, tenants, tenantLocked } = useTenant();
   const { settings } = useSettings();
-  const { user } = useUser();
 
-  // Debug logs
+  // --- FIX 1: Import the `logout` function from the context ---
+  const { user, logout } = useUser();
+
+  // The debug log is helpful, let's keep it for now.
   console.log("Header debug:", {
     tenant,
     tenants,
@@ -65,23 +67,29 @@ const Header = () => {
           )}
           <Typography variant="h6">{settings?.tenantDisplayName}</Typography>
         </Box>
-        <Box display="flex" alignItems="center">
-          {user && (
+
+        {/* --- FIX 3: Conditionally render user info and logout button --- */}
+        {/* This ensures they only show up when a user is actually logged in. */}
+        {user && (
+          <Box display="flex" alignItems="center">
             <Typography sx={{ mr: 2, color: "white" }}>{user.name}</Typography>
-          )}
-          <Button color="inherit" onClick={() => navigate("/login")}>
-            Logout
-          </Button>
-          {!isAuthPage && user?.role === "ADMIN" && (
-            <IconButton
-              color="inherit"
-              sx={{ ml: 1 }}
-              onClick={() => navigate("/settings")}
-            >
-              <SettingsIcon />
-            </IconButton>
-          )}
-        </Box>
+
+            {/* --- FIX 2: Call the `logout` function on click --- */}
+            <Button color="inherit" onClick={logout}>
+              Logout
+            </Button>
+
+            {!isAuthPage && user.role === "ADMIN" && (
+              <IconButton
+                color="inherit"
+                sx={{ ml: 1 }}
+                onClick={() => navigate("/settings")}
+              >
+                <SettingsIcon />
+              </IconButton>
+            )}
+          </Box>
+        )}
       </Toolbar>
     </AppBar>
   );

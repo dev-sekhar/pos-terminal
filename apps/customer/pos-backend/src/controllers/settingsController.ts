@@ -1,41 +1,42 @@
 import { Request, Response, NextFunction } from 'express';
+import { AuthenticatedRequest } from '../types/express';
 import * as settingsService from '../services/settingsService';
-import { UserContextPayload } from '../types/custom';
-import { Role } from '@prisma/client';
+// We no longer need prisma in the controller.
 
-// This is the correct, safe, and synchronous helper function.
-const getUserFromRequest = (req: Request): UserContextPayload => {
-    const user = req.user;
-    if (!user) {
-        throw new Error('User context is missing from the request session.');
-    }
-    return {
-        id: Number(user.id),
-        tenantId: user.tenantId,
-        role: user.role,
-        branchId: user.branchId,
-    };
+/**
+ * Creates the UserContextPayload object that the service layer expects.
+ * It combines the user info from the JWT (via authMiddleware) with the
+ * tenant's DATABASE ID (via tenantMiddleware).
+ * @param req The authenticated request object.
+ * @returns The context payload for the service layer.
+ */
+const createServiceContext = (req: AuthenticatedRequest) => {
+  return {
+    ...req.user,
+    // This is the critical fix: use the tenant's database ID, not the subdomain.
+    tenantId: req.tenant.id,
+  };
 };
+
+
+// --- Controller Functions ---
 
 export const getSettings = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const requestingUser = getUserFromRequest(req);
-    // This call is now fully type-safe.
-    const settings = await settingsService.getSettings(requestingUser);
+    const context = createServiceContext(req as AuthenticatedRequest);
+    const settings = await settingsService.getSettings(context);
     res.json(settings);
-  } catch (err) {
-    next(err);
+  } catch (err) { 
+    next(err); 
   }
 };
 
 export const updateSettings = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const requestingUser = getUserFromRequest(req);
-    const newSettings = req.body;
-    // This call is now fully type-safe.
-    const updatedSettings = await settingsService.updateSettings(requestingUser, newSettings);
+    const context = createServiceContext(req as AuthenticatedRequest);
+    const updatedSettings = await settingsService.updateSettings(context, req.body);
     res.json(updatedSettings);
-  } catch (err) {
-    next(err);
+  } catch (err) { 
+    next(err); 
   }
 };

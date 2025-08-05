@@ -7,6 +7,8 @@ import React, {
   useMemo,
 } from "react";
 import { useUser } from "./UserContext";
+// --- FIX 1: Import our centralized API utility ---
+import { authenticatedFetch } from "../utils/api";
 
 const SettingsContext = createContext();
 
@@ -15,65 +17,46 @@ export const useSettings = () => useContext(SettingsContext);
 export const SettingsProvider = ({ children }) => {
   const { user } = useUser();
   const [settings, setSettings] = useState(null);
-  const [loading, setLoading] = useState(false); // Default to false
+  const [loading, setLoading] = useState(true); // Start as true on initial load
   const [error, setError] = useState("");
-
-  const callApi = useCallback(async (url, options = {}) => {
-    const token = localStorage.getItem("token");
-    if (!token) throw new Error("No token found");
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-    });
-    if (!response.ok) {
-      const errData = await response
-        .json()
-        .catch(() => ({ message: "An unknown error occurred" }));
-      throw new Error(errData.message);
-    }
-    return response.json();
-  }, []);
 
   useEffect(() => {
     const fetchSettings = async () => {
-      // --- THIS IS THE FIX ---
-      // 1. Define which roles are allowed to even try fetching settings.
-      const allowedRoles = ["ADMIN", "MANAGER"];
-
-      // 2. Check the user's role. If they are not logged in or not in an allowed role, do nothing.
-      if (!user || !allowedRoles.includes(user.role)) {
-        setSettings(null); // Ensure settings are cleared for unauthorized roles
+      // --- THIS IS YOUR CORRECTED LOGIC ---
+      // 1. Only ADMINs should ever attempt to fetch settings.
+      if (!user || user.role !== "ADMIN") {
+        setSettings(null); // Ensure settings are null for non-admins
         setLoading(false);
-        return; // Exit early
+        return; // Exit immediately
       }
-      // --- END OF FIX ---
 
       setLoading(true);
       setError("");
       try {
-        const data = await callApi("/api/settings");
-        console.log(
-          "✅ Settings loaded successfully for authorized user:",
-          data
-        );
+        // 2. Use authenticatedFetch for the API call.
+        const data = await authenticatedFetch("/api/settings");
+        console.log("Settings loaded successfully for ADMIN:", data);
         setSettings(data);
       } catch (err) {
+        // An error here is a real problem, because an ADMIN should have access.
         setError(err.message);
-        console.error("❌ Failed to load settings:", err);
+        console.error("Failed to load settings for ADMIN:", err);
       } finally {
         setLoading(false);
       }
     };
     fetchSettings();
-  }, [user, callApi]);
+  }, [user]); // Re-evaluate whenever the user changes
 
   const updateSettings = useCallback(
     async (newSettings) => {
+      // This check is a safeguard, but the UI should prevent this from being called by non-admins.
+      if (!user || user.role !== "ADMIN") {
+        setError("Only Admins can update settings.");
+        return;
+      }
       try {
-        const updated = await callApi("/api/settings", {
+        const updated = await authenticatedFetch("/api/settings", {
           method: "PUT",
           body: JSON.stringify(newSettings),
         });
@@ -82,16 +65,11 @@ export const SettingsProvider = ({ children }) => {
         setError(err.message);
       }
     },
-    [callApi]
+    [user] // Dependency on user for the permission check
   );
 
   const value = useMemo(
-    () => ({
-      settings,
-      updateSettings,
-      loading,
-      error,
-    }),
+    () => ({ settings, updateSettings, loading, error }),
     [settings, updateSettings, loading, error]
   );
 
