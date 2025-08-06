@@ -22,6 +22,7 @@ import authMiddleware from './middleware/authMiddleware';
 import tenantMiddleware from './middleware/tenantMiddleware';
 import dashboardRoutes from './routes/dashboard';
 import settingsRoutes from './routes/settings';
+import reportsRoutes from './routes/reports';
 
 // --- INITIALIZE APP ---
 dotenv.config();
@@ -59,6 +60,7 @@ app.use('/api/purchases', protectedMiddleware, purchaseRoutes);
 app.use('/api/tenants', protectedMiddleware, tenantsRoutes);
 app.use('/api/dashboard', protectedMiddleware, dashboardRoutes);
 app.use('/api/settings', protectedMiddleware, settingsRoutes);
+app.use('/api/reports', protectedMiddleware, reportsRoutes);
 
 // --- GLOBAL ERROR HANDLER (must be last) ---
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {

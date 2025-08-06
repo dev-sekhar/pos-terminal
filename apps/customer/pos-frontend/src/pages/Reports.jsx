@@ -1,38 +1,79 @@
-import React from 'react';
-import { Box, Typography, Paper, Grid, CircularProgress, Alert } from '@mui/material';
-import { useSettings } from '../context/SettingsContext'; // 1. IMPORT THE HOOK
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  Box,
+  Typography,
+  Paper,
+  Grid,
+  CircularProgress,
+  Alert,
+} from "@mui/material";
+import { useSettings } from "../context/SettingsContext";
+import { useTenant } from "../context/TenantContext";
+import { useBranch } from "../context/BranchContext";
+import { authenticatedFetch } from "../utils/api";
 
 const Reports = () => {
-  // 2. USE THE SETTINGS FROM THE CONTEXT
-  const { settings, loading, error } = useSettings();
+  const { settings } = useSettings();
+  const { tenant } = useTenant();
+  const { branch } = useBranch();
 
-  // 3. ADD ROBUST LOADING AND ERROR GUARDS
+  const [reportData, setReportData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const fetchData = useCallback(async () => {
+    if (!tenant || !branch) return;
+
+    setLoading(true);
+    setError("");
+    try {
+      // This call will now succeed because the backend route exists.
+      const data = await authenticatedFetch("/api/reports");
+      setReportData(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [tenant, branch]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
   if (loading) return <CircularProgress />;
   if (error) return <Alert severity="error">{error}</Alert>;
-  if (!settings) return <Alert severity="warning">Could not load tenant settings.</Alert>;
+
+  const currency = settings?.currency || "$";
 
   return (
     <Box sx={{ p: { xs: 1, sm: 2, md: 3 } }}>
-      <Typography variant="h4" gutterBottom>Reports</Typography>
+      <Typography variant="h4" gutterBottom>
+        Reports
+      </Typography>
       <Grid container spacing={2}>
-        {/* Corrected Grid v2 syntax */}
-        <Grid xs={12} md={4}>
-          <Paper sx={{ p: 2, width: '100%', mb: { xs: 2, md: 0 } }}>
+        <Grid item xs={12} md={4}>
+          <Paper sx={{ p: 2, width: "100%", mb: { xs: 2, md: 0 } }}>
             <Typography variant="subtitle1">Total Sales Today</Typography>
-            {/* 4. USE THE CURRENCY FROM THE SETTINGS */}
-            <Typography variant="h6">{settings.currency} 2,300</Typography>
+            <Typography variant="h6">
+              {currency} {reportData?.totalSalesToday?.toFixed(2) || "0.00"}
+            </Typography>
           </Paper>
         </Grid>
-        <Grid xs={12} md={4}>
-          <Paper sx={{ p: 2, width: '100%', mb: { xs: 2, md: 0 } }}>
-            <Typography variant="subtitle1">Total Purchases This Week</Typography>
-            <Typography variant="h6">{settings.currency} 4,800</Typography>
+        <Grid item xs={12} md={4}>
+          <Paper sx={{ p: 2, width: "100%", mb: { xs: 2, md: 0 } }}>
+            <Typography variant="subtitle1">
+              Total Purchases This Week
+            </Typography>
+            <Typography variant="h6">{currency} 0.00</Typography>
           </Paper>
         </Grid>
-        <Grid xs={12} md={4}>
-          <Paper sx={{ p: 2, width: '100%' }}>
+        <Grid item xs={12} md={4}>
+          <Paper sx={{ p: 2, width: "100%" }}>
             <Typography variant="subtitle1">Low Stock Items</Typography>
-            <Typography variant="h6">7</Typography>
+            <Typography variant="h6">
+              {reportData?.lowStockItemCount || 0}
+            </Typography>
           </Paper>
         </Grid>
       </Grid>
