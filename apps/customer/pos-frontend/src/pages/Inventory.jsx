@@ -27,10 +27,9 @@ import {
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { useTenant } from "../context/TenantContext";
-import "../styles/Inventory.css";
-
-// --- FIX 1: Import our new centralized API utility ---
+import { useBranch } from "../context/BranchContext";
 import { authenticatedFetch } from "../utils/api";
+import "../styles/Inventory.css";
 
 const initialFormState = {
   productId: "",
@@ -41,9 +40,10 @@ const initialFormState = {
 
 const Inventory = () => {
   const { tenant } = useTenant();
+  const { branch, branches, loading: branchLoading } = useBranch();
+
   const [inventory, setInventory] = useState([]);
   const [products, setProducts] = useState([]);
-  const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -53,35 +53,37 @@ const Inventory = () => {
 
   const [formErrors, setFormErrors] = useState([]);
 
-  // --- FIX 2: REMOVE the local `callApi` function. ---
-
   const fetchData = useCallback(async () => {
+    // Wait for the essential context to be ready.
+    if (!tenant || !branch) return;
+
     setLoading(true);
     setError("");
     try {
-      // --- FIX 3: Use authenticatedFetch for all parallel API calls. ---
-      const [invData, prodData, branchData] = await Promise.all([
+      // These are the two essential data sets for this page.
+      const [invData, prodData] = await Promise.all([
         authenticatedFetch("/api/inventory"),
-        authenticatedFetch("/api/products"),
-        authenticatedFetch("/api/branches"),
+        authenticatedFetch("/api/products"), // This call was failing.
       ]);
       setInventory(invData || []);
       setProducts(prodData || []);
-      setBranches(branchData || []);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, []); // Dependency on callApi is removed
+  }, [tenant, branch]);
 
   useEffect(() => {
-    if (tenant) fetchData();
-  }, [tenant, fetchData]);
+    fetchData();
+  }, [fetchData]);
 
   const handleOpen = (item = null) => {
     setIsEditing(!!item);
-    setCurrentItem(item ? { ...item } : initialFormState);
+    const formState = item
+      ? { ...item }
+      : { ...initialFormState, branchId: branch?.id || "" };
+    setCurrentItem(formState);
     setFormErrors([]);
     setOpen(true);
   };
@@ -103,7 +105,6 @@ const Inventory = () => {
       : "/api/inventory";
 
     try {
-      // --- FIX 4: Use authenticatedFetch for saving data. ---
       await authenticatedFetch(url, {
         method,
         body: JSON.stringify(currentItem),
@@ -121,7 +122,6 @@ const Inventory = () => {
     )
       return;
     try {
-      // --- FIX 5: Use authenticatedFetch for deleting data. ---
       await authenticatedFetch(`/api/inventory/${id}`, { method: "DELETE" });
       fetchData();
     } catch (err) {
@@ -129,7 +129,7 @@ const Inventory = () => {
     }
   };
 
-  if (loading) return <CircularProgress />;
+  if (loading || branchLoading) return <CircularProgress />;
   if (error) return <Alert severity="error">{error}</Alert>;
 
   const lowStockAlerts = inventory.filter(
@@ -145,7 +145,11 @@ const Inventory = () => {
         mb={2}
       >
         <Typography variant="h4">Inventory</Typography>
-        <Button variant="contained" onClick={() => handleOpen()}>
+        <Button
+          variant="contained"
+          onClick={() => handleOpen()}
+          disabled={loading || branchLoading}
+        >
           Add Stock
         </Button>
       </Box>
@@ -157,20 +161,10 @@ const Inventory = () => {
               <Paper elevation={2} className="low-stock-alert">
                 <Typography variant="subtitle1">🔴 Low Stock Alert</Typography>
                 <Typography>
-                  <strong>{item.product.name}</strong> at{" "}
-                  <strong>{item.branch.name}</strong> has only {item.stock}{" "}
+                  <strong>{item.product?.name}</strong> at{" "}
+                  <strong>{item.branch?.name}</strong> has only {item.stock}{" "}
                   units left.
                 </Typography>
-                {item.stock === 0 && (
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    sx={{ mt: 1 }}
-                    onClick={() => handleOpen(item)}
-                  >
-                    Update Inventory
-                  </Button>
-                )}
               </Paper>
             </Grid>
           ))}
@@ -190,34 +184,32 @@ const Inventory = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {inventory
-              .filter((item) => item.stock > 0)
-              .map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell>{item.product.name}</TableCell>
-                  <TableCell>{item.branch.name}</TableCell>
-                  <TableCell>{item.stock}</TableCell>
-                  <TableCell>{item.reorderLevel}</TableCell>
-                  <TableCell>
-                    {item.stock < item.reorderLevel ? (
-                      <Chip label="Low" color="error" />
-                    ) : (
-                      <Chip label="OK" color="success" />
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <IconButton onClick={() => handleOpen(item)}>
-                      <EditIcon />
-                    </IconButton>
-                    <IconButton
-                      onClick={() => handleDelete(item.id)}
-                      color="error"
-                    >
-                      <DeleteIcon />
-                    </IconButton>
-                  </TableCell>
-                </TableRow>
-              ))}
+            {inventory.map((item) => (
+              <TableRow key={item.id}>
+                <TableCell>{item.product?.name || "N/A"}</TableCell>
+                <TableCell>{item.branch?.name || "N/A"}</TableCell>
+                <TableCell>{item.stock}</TableCell>
+                <TableCell>{item.reorderLevel}</TableCell>
+                <TableCell>
+                  {item.stock < item.reorderLevel ? (
+                    <Chip label="Low" color="error" />
+                  ) : (
+                    <Chip label="OK" color="success" />
+                  )}
+                </TableCell>
+                <TableCell>
+                  <IconButton onClick={() => handleOpen(item)}>
+                    <EditIcon />
+                  </IconButton>
+                  <IconButton
+                    onClick={() => handleDelete(item.id)}
+                    color="error"
+                  >
+                    <DeleteIcon />
+                  </IconButton>
+                </TableCell>
+              </TableRow>
+            ))}
           </TableBody>
         </Table>
       </Paper>
@@ -236,7 +228,7 @@ const Inventory = () => {
             <InputLabel>Product</InputLabel>
             <Select
               name="productId"
-              value={currentItem.productId}
+              value={currentItem.productId || ""}
               label="Product"
               onChange={handleChange}
             >
@@ -251,7 +243,7 @@ const Inventory = () => {
             <InputLabel>Branch</InputLabel>
             <Select
               name="branchId"
-              value={currentItem.branchId}
+              value={currentItem.branchId || ""}
               label="Branch"
               onChange={handleChange}
             >
@@ -266,7 +258,7 @@ const Inventory = () => {
             margin="dense"
             label="Stock Quantity"
             name="stock"
-            value={currentItem.stock}
+            value={currentItem.stock || ""}
             onChange={handleChange}
             type="number"
             fullWidth
@@ -275,7 +267,7 @@ const Inventory = () => {
             margin="dense"
             label="Reorder Level"
             name="reorderLevel"
-            value={currentItem.reorderLevel}
+            value={currentItem.reorderLevel || ""}
             onChange={handleChange}
             type="number"
             fullWidth

@@ -1,21 +1,21 @@
 import { PrismaClient, Prisma, User, Role } from '@prisma/client';
-import * as bcrypt from 'bcryptjs';
 import { UserContextPayload } from '../types/custom';
+import prisma from '../lib/prisma';
+import * as bcrypt from 'bcryptjs';
 
-const prisma = new PrismaClient();
-
-// List users, scoped by the requesting user's role and branch
+// List users, securely scoped by the requesting user's role and branch
 export const listUsers = async (requestingUser: UserContextPayload): Promise<User[]> => {
+  const { tenantId, role, branchId } = requestingUser;
   const whereClause: Prisma.UserWhereInput = {
-    tenantId: requestingUser.tenantId,
+    tenantId: tenantId,
     deleted: false,
   };
 
-  // If the user is a Manager, they can only see users from their own branch.
-  if (requestingUser.role === Role.MANAGER) {
-    whereClause.branchId = requestingUser.branchId;
+  // Managers can only see users in their own branch.
+  if (role === Role.MANAGER) {
+    whereClause.branchId = branchId;
   }
-  // Admins have no extra branch filter, so they see all users in the tenant.
+  // Admins see all users in the tenant.
 
   return prisma.user.findMany({
     where: whereClause,
@@ -24,42 +24,42 @@ export const listUsers = async (requestingUser: UserContextPayload): Promise<Use
   });
 };
 
-// Get a single user, respecting branch scope for Managers
+// Get a single user by ID, respecting branch scope for Managers
 export const getUserById = async (id: number, requestingUser: UserContextPayload): Promise<User | null> => {
-  const whereClause: Prisma.UserWhereInput = {
-    id,
-    tenantId: requestingUser.tenantId,
-    deleted: false,
-  };
+    const { tenantId, role, branchId } = requestingUser;
+    
+    // Admins can get any user in the tenant
+    const whereClause: Prisma.UserWhereUniqueInput = { id, tenantId };
+    
+    const user = await prisma.user.findUnique({ where: whereClause });
 
-  if (requestingUser.role === Role.MANAGER) {
-    whereClause.branchId = requestingUser.branchId;
-  }
+    // If the requester is a Manager, we must verify the found user is in their branch.
+    if (!user || (role === Role.MANAGER && user.branchId !== branchId)) {
+        return null;
+    }
 
-  return prisma.user.findFirst({
-    where: whereClause,
-  });
+    return user;
 };
 
-// Create a new user
-export const createUser = async (data: Prisma.UserUncheckedCreateInput, requestingUser: UserContextPayload): Promise<User> => {
-  const { name, email, password, role } = data;
-  let { branchId } = data;
-  
-  if (!password) {
-      throw new Error("Password is required to create a user.");
-  }
-  
-  // RBAC LOGIC: If a Manager creates a user, force the new user to be in the Manager's branch.
-  if (requestingUser.role === Role.MANAGER) {
-    branchId = requestingUser.branchId;
-  }
-  
-  if (!branchId) {
-    throw new Error("Branch ID is required to create a user.");
+// Create a new user, respecting branch scope for Managers
+export const createUser = async (data: any, requestingUser: UserContextPayload): Promise<User> => {
+  const { name, email, password, role, branchId } = data;
+  const { tenantId, role: requesterRole, branchId: requesterBranchId, id: creatorId } = requestingUser;
+
+  let finalBranchId = branchId;
+
+  // A Manager can ONLY create users for their own branch.
+  // They also cannot create other ADMINs.
+  if (requesterRole === Role.MANAGER) {
+    if (role === Role.ADMIN) {
+      throw new Error("Forbidden: Managers cannot create Admin users.");
+    }
+    finalBranchId = requesterBranchId; // Force the user to be created in the manager's branch.
   }
 
-  const hashedPassword = await bcrypt.hash(String(password), 10);
+  if (!finalBranchId) throw new Error("Branch is required to create a user.");
+  
+  const hashedPassword = await bcrypt.hash(password, 10);
 
   return prisma.user.create({
     data: {
@@ -67,43 +67,79 @@ export const createUser = async (data: Prisma.UserUncheckedCreateInput, requesti
       email,
       password: hashedPassword,
       role,
-      branchId,
-      tenantId: requestingUser.tenantId,
-      createdById: requestingUser.id,
+      branchId: finalBranchId,
+      tenantId: tenantId,
+      createdById: creatorId,
     },
   });
 };
 
-// Update a user's details
-export const updateUser = async (id: number, data: Prisma.UserUpdateInput, requestingUser: UserContextPayload): Promise<User | null> => {
-  // First, verify the user being updated is within the manager's scope by attempting to fetch them
-  const userToUpdate = await getUserById(id, requestingUser);
-  if (!userToUpdate) {
-      throw new Error("User not found or you do not have permission to edit this user.");
-  }
+// Update a user, respecting branch scope for Managers
+export const updateUser = async (id: number, data: any, requestingUser: UserContextPayload): Promise<User | null> => {
+    const { name, email, password, role, branchId } = data;
+    const { tenantId, role: requesterRole, branchId: requesterBranchId } = requestingUser;
+    
+    // First, find the user being updated to verify ownership.
+    const userToUpdate = await prisma.user.findUnique({ where: { id, tenantId }});
+    if (!userToUpdate) {
+        return null; // User doesn't exist in this tenant
+    }
 
-  if (data.password) {
-    data.password = await bcrypt.hash(String(data.password), 10);
-  }
+    // A Manager can only edit users in their own branch.
+    if (requesterRole === Role.MANAGER && userToUpdate.branchId !== requesterBranchId) {
+        throw new Error("Forbidden: You can only edit users in your own branch.");
+    }
+    
+    // A Manager cannot promote a user to ADMIN or edit an existing ADMIN.
+    if (requesterRole === Role.MANAGER && (role === Role.ADMIN || userToUpdate.role === Role.ADMIN)) {
+        throw new Error("Forbidden: Managers cannot edit or create Admin users.");
+    }
 
-  await prisma.user.updateMany({
-    where: { id, tenantId: requestingUser.tenantId }, // Use the id from the verified user
-    data,
-  });
-  
-  return getUserById(id, requestingUser);
+    // Start building the data object for the update operation
+    const updateData: Prisma.UserUpdateInput = {};
+
+    if (name) updateData.name = name;
+    if (email) updateData.email = email;
+    if (role) updateData.role = role;
+    
+    // --- THIS IS THE CRITICAL FIX ---
+    // For the branch relation, we must use the 'connect' syntax.
+    if (branchId) {
+        updateData.branch = {
+            connect: { id: Number(branchId) }
+        };
+    }
+
+    if (password) {
+        updateData.password = await bcrypt.hash(password, 10);
+    }
+
+    return prisma.user.update({
+        where: { id },
+        data: updateData
+    });
 };
 
-// Soft delete a user
+// Soft delete a user, respecting branch scope for Managers
 export const deleteUser = async (id: number, requestingUser: UserContextPayload): Promise<{ count: number }> => {
-  // First, verify the user being deleted is within the manager's scope
-  const userToDelete = await getUserById(id, requestingUser);
-  if (!userToDelete) {
-      throw new Error("User not found or you do not have permission to delete this user.");
-  }
+    const { tenantId, role, branchId } = requestingUser;
+    
+    const whereClause: Prisma.UserWhereInput = { id, tenantId };
 
-  return prisma.user.updateMany({
-    where: { id, tenantId: requestingUser.tenantId },
-    data: { deleted: true },
-  });
+    // A Manager can only delete users in their own branch.
+    if (role === Role.MANAGER) {
+        whereClause.branchId = branchId;
+    }
+    
+    // Ensure the user exists and meets the criteria before trying to delete.
+    const userToDelete = await prisma.user.findFirst({ where: whereClause });
+    // Prevent deleting admins and ensure user exists.
+    if (!userToDelete || userToDelete.role === Role.ADMIN) {
+        return { count: 0 };
+    }
+
+    return prisma.user.updateMany({
+        where: { id: userToDelete.id },
+        data: { deleted: true }
+    });
 };

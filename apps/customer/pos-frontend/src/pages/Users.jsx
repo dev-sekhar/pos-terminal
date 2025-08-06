@@ -27,8 +27,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { useTenant } from "../context/TenantContext";
 import { useUser } from "../context/UserContext";
-
-// --- FIX 1: Import our centralized API utility ---
+import { useBranch } from "../context/BranchContext"; // Import Branch context
 import { authenticatedFetch } from "../utils/api";
 
 const initialFormState = {
@@ -43,6 +42,8 @@ const roles = ["ADMIN", "MANAGER", "CASHIER"];
 const Users = () => {
   const { tenant } = useTenant();
   const { user: loggedInUser } = useUser();
+  const { branch: loggedInUserBranch } = useBranch(); // Get the manager's own branch
+
   const [users, setUsers] = useState([]);
   const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -52,26 +53,27 @@ const Users = () => {
   const [currentUser, setCurrentUser] = useState(initialFormState);
   const [formErrors, setFormErrors] = useState([]);
 
-  // --- FIX 2: Remove the local `callApi` function ---
-
   const fetchData = useCallback(async () => {
     if (!tenant) return;
     setLoading(true);
     setError("");
     try {
-      // --- FIX 3: Use authenticatedFetch for parallel data fetching ---
-      const [usersData, branchesData] = await Promise.all([
-        authenticatedFetch("/api/users"),
-        authenticatedFetch("/api/branches"),
-      ]);
+      // Admins need the full branch list for the dropdown. Managers don't.
+      const fetchPromises = [authenticatedFetch("/api/users")];
+      if (loggedInUser?.role === "ADMIN") {
+        fetchPromises.push(authenticatedFetch("/api/branches"));
+      }
+
+      const [usersData, branchesData] = await Promise.all(fetchPromises);
+
       setUsers(usersData || []);
-      setBranches(branchesData || []);
+      setBranches(branchesData || []); // This will be undefined for Managers, which is fine.
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [tenant]);
+  }, [tenant, loggedInUser?.role]);
 
   useEffect(() => {
     fetchData();
@@ -88,7 +90,12 @@ const Users = () => {
           role: user.role,
           branchId: user.branchId || "",
         }
-      : initialFormState;
+      : {
+          ...initialFormState,
+          // If the logged-in user is a Manager, pre-fill and lock the branch to their own.
+          branchId:
+            loggedInUser.role === "MANAGER" ? loggedInUserBranch?.id : "",
+        };
     setCurrentUser(formState);
     setFormErrors([]);
     setOpen(true);
@@ -107,13 +114,16 @@ const Users = () => {
       setFormErrors(["Password is required for new users."]);
       return;
     }
+    if (!payload.branchId) {
+      setFormErrors(["Branch is a required field."]);
+      return;
+    }
 
     setFormErrors([]);
     const method = isEditing ? "PUT" : "POST";
     const url = isEditing ? `/api/users/${currentUser.id}` : "/api/users";
 
     try {
-      // --- FIX 4: Use authenticatedFetch for saving data ---
       await authenticatedFetch(url, { method, body: JSON.stringify(payload) });
       handleClose();
       fetchData();
@@ -125,7 +135,6 @@ const Users = () => {
   const handleDelete = async (id) => {
     if (!window.confirm("Are you sure?")) return;
     try {
-      // --- FIX 5: Use authenticatedFetch for deleting data ---
       await authenticatedFetch(`/api/users/${id}`, { method: "DELETE" });
       fetchData();
     } catch (err) {
@@ -145,11 +154,9 @@ const Users = () => {
         mb={2}
       >
         <Typography variant="h4">Users</Typography>
-        {loggedInUser?.role === "ADMIN" && (
-          <Button variant="contained" onClick={() => handleOpen()}>
-            Add User
-          </Button>
-        )}
+        <Button variant="contained" onClick={() => handleOpen()}>
+          Add User
+        </Button>
       </Box>
       <Paper>
         <Table>
@@ -172,19 +179,15 @@ const Users = () => {
                 </TableCell>
                 <TableCell>{user.branch?.name || "N/A"}</TableCell>
                 <TableCell>
-                  {loggedInUser?.role === "ADMIN" && (
-                    <>
-                      <IconButton onClick={() => handleOpen(user)}>
-                        <EditIcon />
-                      </IconButton>
-                      <IconButton
-                        onClick={() => handleDelete(user.id)}
-                        color="error"
-                      >
-                        <DeleteIcon />
-                      </IconButton>
-                    </>
-                  )}
+                  <IconButton onClick={() => handleOpen(user)}>
+                    <EditIcon />
+                  </IconButton>
+                  <IconButton
+                    onClick={() => handleDelete(user.id)}
+                    color="error"
+                  >
+                    <DeleteIcon />
+                  </IconButton>
                 </TableCell>
               </TableRow>
             ))}
@@ -235,28 +238,35 @@ const Users = () => {
               value={currentUser.role}
               onChange={handleChange}
             >
-              {roles.map((role) => (
-                <MenuItem key={role} value={role}>
-                  {role}
-                </MenuItem>
-              ))}
+              {/* Managers can only create/edit Cashiers */}
+              {(loggedInUser.role === "ADMIN" ? roles : ["CASHIER"]).map(
+                (role) => (
+                  <MenuItem key={role} value={role}>
+                    {role}
+                  </MenuItem>
+                )
+              )}
             </Select>
           </FormControl>
-          <FormControl margin="dense" fullWidth>
-            <InputLabel>Branch</InputLabel>
-            <Select
-              label="Branch"
-              name="branchId"
-              value={currentUser.branchId || ""}
-              onChange={handleChange}
-            >
-              {branches.map((branch) => (
-                <MenuItem key={branch.id} value={branch.id}>
-                  {branch.name}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+
+          {/* A Manager can only create users in their own branch, so the field is hidden and pre-filled. */}
+          {loggedInUser.role === "ADMIN" && (
+            <FormControl margin="dense" fullWidth>
+              <InputLabel>Branch</InputLabel>
+              <Select
+                label="Branch"
+                name="branchId"
+                value={currentUser.branchId || ""}
+                onChange={handleChange}
+              >
+                {branches.map((branch) => (
+                  <MenuItem key={branch.id} value={branch.id}>
+                    {branch.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={handleClose}>Cancel</Button>

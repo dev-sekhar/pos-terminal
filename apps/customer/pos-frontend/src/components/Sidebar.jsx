@@ -23,10 +23,10 @@ import BranchIcon from "@mui/icons-material/Store";
 import CategoryIcon from "@mui/icons-material/Category";
 import { useUser } from "../context/UserContext";
 
-// --- FIX 1: Import the tools from our single source of truth ---
+// --- 1. IMPORT THE TOOLS FROM OUR SINGLE SOURCE OF TRUTH ---
 import { getUserPermissions, PERMISSIONS } from "@pos-terminal/permissions";
 
-// --- FIX 2: Define navigation based on PERMISSIONS, not roles ---
+// --- 2. DEFINE NAVIGATION BASED ON PERMISSIONS, NOT ROLES ---
 const navItems = [
   {
     text: "Dashboard",
@@ -43,7 +43,7 @@ const navItems = [
   {
     text: "Products",
     icon: <InventoryIcon />,
-    permission: PERMISSIONS.MANAGE_PRODUCTS, // Parent item also needs a permission
+    permission: PERMISSIONS.MANAGE_PRODUCTS, // Parent item needs a permission to be shown
     subItems: [
       {
         text: "All Products",
@@ -109,14 +109,14 @@ const Sidebar = () => {
 
   const handleProductsClick = () => setProductsOpen(!productsOpen);
 
-  // --- FIX 3: The filtering logic is now much cleaner and more robust ---
+  // --- 3. THE FILTERING LOGIC IS NOW SCALABLE AND ROBUST ---
   const accessibleNavItems = useMemo(() => {
     if (!user?.role) return [];
 
     // Get the full list of permission strings for the current user's role
     const userPermissions = getUserPermissions(user.role);
 
-    // Recursively filter the nav items based on the user's permissions
+    // Recursively filter the nav items and their sub-items based on the user's permissions
     const filterItems = (items) => {
       return items
         .filter((item) => userPermissions.includes(item.permission)) // Check if the user has the permission for this link
@@ -143,8 +143,8 @@ const Sidebar = () => {
       <Toolbar />
       <List>
         {accessibleNavItems.map((item) => {
+          // Only show the dropdown parent if there are accessible sub-items
           if (item.subItems && item.subItems.length > 0) {
-            // Only show dropdown if there are accessible sub-items
             return (
               <React.Fragment key={item.text}>
                 <ListItemButton onClick={handleProductsClick}>
@@ -160,7 +160,6 @@ const Sidebar = () => {
                         sx={{ pl: 4 }}
                         component={NavLink}
                         to={sub.path}
-                        onClick={() => console.log(`[Sidebar] Clicked "${sub.text}". Required permission: ${sub.permission}`)}
                       >
                         <ListItemIcon>{sub.icon}</ListItemIcon>
                         <ListItemText primary={sub.text} />
@@ -171,12 +170,20 @@ const Sidebar = () => {
               </React.Fragment>
             );
           }
-          return (
-            <ListItemButton key={item.path} component={NavLink} to={item.path}>
-              <ListItemIcon>{item.icon}</ListItemIcon>
-              <ListItemText primary={item.text} />
-            </ListItemButton>
-          );
+          // Render a regular link if it has no sub-items
+          if (!item.subItems) {
+            return (
+              <ListItemButton
+                key={item.path}
+                component={NavLink}
+                to={item.path}
+              >
+                <ListItemIcon>{item.icon}</ListItemIcon>
+                <ListItemText primary={item.text} />
+              </ListItemButton>
+            );
+          }
+          return null; // Don't render a dropdown parent if none of its children are accessible
         })}
       </List>
     </Drawer>
