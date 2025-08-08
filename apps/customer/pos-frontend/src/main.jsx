@@ -10,21 +10,20 @@ import { SettingsProvider } from "./context/SettingsContext";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
+    {/* BrowserRouter is the top-level wrapper */}
     <BrowserRouter>
-      {/* --- THIS IS THE CORRECTED ORDER --- */}
-      {/* TenantProvider has no dependencies, so it can be on the outside. */}
-      <TenantProvider>
-        {/* UserProvider is next, as other contexts depend on it. */}
-        <UserProvider>
-          {/* BranchProvider needs the user, so it must be inside UserProvider. */}
+      {/* --- THIS IS THE FINAL, CORRECT ORDER --- */}
+      {/* UserProvider has no dependencies on the others, so it can be on the outside. */}
+      <UserProvider>
+        {/* All other contexts depend on the user, so they must be nested inside. */}
+        <TenantProvider>
           <BranchProvider>
-            {/* SettingsProvider needs the user, so it must also be inside UserProvider. */}
             <SettingsProvider>
               <App />
             </SettingsProvider>
           </BranchProvider>
-        </UserProvider>
-      </TenantProvider>
+        </TenantProvider>
+      </UserProvider>
     </BrowserRouter>
   </React.StrictMode>
 );

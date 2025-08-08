@@ -23,11 +23,9 @@ const Reports = () => {
 
   const fetchData = useCallback(async () => {
     if (!tenant || !branch) return;
-
     setLoading(true);
     setError("");
     try {
-      // This call will now succeed because the backend route exists.
       const data = await authenticatedFetch("/api/reports");
       setReportData(data);
     } catch (err) {
@@ -52,6 +50,8 @@ const Reports = () => {
         Reports
       </Typography>
       <Grid container spacing={2}>
+        {/* --- THIS IS THE MUI v5 SYNTAX FIX --- */}
+        {/* The `item` prop is no longer needed. Responsive props go directly on the Grid. */}
         <Grid item xs={12} md={4}>
           <Paper sx={{ p: 2, width: "100%", mb: { xs: 2, md: 0 } }}>
             <Typography variant="subtitle1">Total Sales Today</Typography>

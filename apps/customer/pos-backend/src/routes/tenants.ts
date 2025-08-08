@@ -5,14 +5,20 @@ import { PERMISSIONS } from '@pos-terminal/permissions';
 
 const router = Router();
 
-// These routes allow an admin to manage their own tenant's information.
-// We protect them with the MANAGE_SETTINGS permission, which is ADMIN-only.
-// Note: The public /api/register-tenant route handles initial creation.
+// --- THIS IS THE CRITICAL FIX ---
+// This route is protected by the standard auth/tenant middleware (in app.ts),
+// but it has NO additional RBAC middleware. This is correct.
+router.get('/public-info', tenantsController.getPublicInfo);
 
-router.get('/', rbacMiddleware(PERMISSIONS.MANAGE_SETTINGS), tenantsController.listTenants);
-router.post('/', rbacMiddleware(PERMISSIONS.MANAGE_SETTINGS), tenantsController.createTenant); // Note: Likely redundant with register-tenant
-router.get('/:id', rbacMiddleware(PERMISSIONS.MANAGE_SETTINGS), tenantsController.getTenantById);
-router.put('/:id', rbacMiddleware(PERMISSIONS.MANAGE_SETTINGS), tenantsController.updateTenant);
-router.delete('/:id', rbacMiddleware(PERMISSIONS.MANAGE_SETTINGS), tenantsController.deleteTenant);
+
+// --- ALL OTHER ROUTES IN THIS FILE ARE ADMIN-ONLY ---
+// We create a single middleware for all admin-level tenant management.
+const canManageTenant = rbacMiddleware(PERMISSIONS.MANAGE_SETTINGS);
+
+router.post('/', canManageTenant, tenantsController.createTenant);
+router.get('/', canManageTenant, tenantsController.listTenants);
+router.get('/:id', canManageTenant, tenantsController.getTenantById);
+router.put('/:id', canManageTenant, tenantsController.updateTenant);
+router.delete('/:id', canManageTenant, tenantsController.deleteTenant);
 
 export default router;
