@@ -26,7 +26,7 @@ model Tenant {
   id        String   @id @default(cuid())
   name      String
   subdomain String   @unique
-  settings  Json? // Using the Json type for flexible settings
+  settings  Json?
   deleted   Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -42,6 +42,8 @@ model Tenant {
   inventories   Inventory[]
   saleItems     SaleItem[]
   purchaseItems PurchaseItem[]
+  // --- THIS IS THE FIX (Part 1) ---
+  auditLogs     AuditLog[]
 }
 
 model User {
@@ -54,7 +56,6 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Relations
   tenantId    String
   tenant      Tenant @relation(fields: [tenantId], references: [id])
   branchId    Int
@@ -62,11 +63,7 @@ model User {
   createdById Int?
   createdBy   User?  @relation("CreatedUsers", fields: [createdById], references: [id])
 
-  // --- THIS IS THE FIX (PART 1) ---
-  // This field is the opposite of the 'user' field in the Sale model.
-  sales Sale[] @relation("Salesperson")
-
-  // Self-relation and created items
+  sales                    Sale[]            @relation("Salesperson")
   createdUsers             User[]            @relation("CreatedUsers")
   createdBranches          Branch[]          @relation("CreatedBranches")
   createdProductCategories ProductCategory[] @relation("CreatedProductCategories")
@@ -75,11 +72,30 @@ model User {
   createdSales             Sale[]            @relation("CreatedSales")
   createdSuppliers         Supplier[]        @relation("CreatedSuppliers")
   createdPurchases         Purchase[]        @relation("CreatedPurchases")
+  // --- THIS IS THE FIX (Part 2) ---
+  auditLogs                AuditLog[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
 }
 
+// --- THIS IS THE NEW MODEL ---
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  tenantId  String
+  userId    Int
+  action    String // e.g., "TENANT_SETTINGS_UPDATED"
+  details   Json // { oldValue, newValue, changedBy }
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([userId])
+}
+
+// --- All other models are correct as they were ---
 model Branch {
   id        Int      @id @default(autoincrement())
   name      String
@@ -192,14 +208,10 @@ model Sale {
   createdAt   DateTime @default(now())
 
   // Relations
-  tenantId String
-  tenant   Tenant @relation(fields: [tenantId], references: [id])
-
-  // --- THIS IS THE FIX (PART 2) ---
-  // We name this relationship to distinguish it from 'createdBy'
-  userId Int
-  user   User @relation("Salesperson", fields: [userId], references: [id])
-
+  tenantId    String
+  tenant      Tenant @relation(fields: [tenantId], references: [id])
+  userId      Int
+  user        User   @relation("Salesperson", fields: [userId], references: [id])
   branchId    Int
   branch      Branch @relation(fields: [branchId], references: [id])
   createdById Int
