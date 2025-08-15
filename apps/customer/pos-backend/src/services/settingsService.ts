@@ -1,25 +1,42 @@
-import { PrismaClient } from '@prisma/client';
-import { UserContextPayload } from '../types/custom'; // 1. IMPORT THE PAYLOAD TYPE
+import { Prisma } from '@prisma/client';
+import { UserContextPayload } from '../types/custom';
+import prisma from '../lib/prisma';
 
-export type TenantSettings = { currency: string; units: string[]; paymentTypes: string[]; };
-const defaultSettings: TenantSettings = { currency: 'USD', units: ['kg', 'L', 'pcs'], paymentTypes: ['Cash', 'Card', 'UPI'] };
-
-const prisma = new PrismaClient();
-
-// 2. UPDATE THE FUNCTION SIGNATURE
-export const getSettings = async (requestingUser: UserContextPayload): Promise<TenantSettings> => {
+// This function correctly fetches the settings for the logged-in user's tenant.
+export const getSettings = async (requestingUser: UserContextPayload) => {
+  const { tenantId } = requestingUser;
   const tenant = await prisma.tenant.findUnique({
-    where: { id: requestingUser.tenantId },
+    where: { id: tenantId },
     select: { settings: true },
   });
-  const savedSettings = tenant?.settings as Partial<TenantSettings> || {};
-  return { ...defaultSettings, ...savedSettings };
+
+  if (!tenant) {
+    throw new Error("Tenant not found.");
+  }
+
+  return tenant.settings;
 };
 
-export const updateSettings = async (requestingUser: UserContextPayload, newSettings: TenantSettings): Promise<TenantSettings> => {
-  await prisma.tenant.update({
-    where: { id: requestingUser.tenantId },
-    data: { settings: newSettings },
+// This function now correctly merges new settings with existing ones.
+export const updateSettings = async (requestingUser: UserContextPayload, data: any) => {
+  const { tenantId } = requestingUser;
+
+  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
+  if (!tenant) {
+    throw new Error("Tenant not found.");
+  }
+
+  // Merge the new settings with any existing settings.
+  // This prevents updating the timezone from deleting the currency, for example.
+  const currentSettings = (tenant.settings as Prisma.JsonObject) || {};
+  const newSettings = { ...currentSettings, ...data };
+
+  const updatedTenant = await prisma.tenant.update({
+    where: { id: tenantId },
+    data: {
+      settings: newSettings,
+    },
   });
-  return newSettings;
+
+  return updatedTenant.settings;
 };

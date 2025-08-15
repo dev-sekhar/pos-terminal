@@ -1,42 +1,38 @@
-// This function will be our single source of truth for making API calls.
 export const authenticatedFetch = async (url, options = {}) => {
-  // 1. Get the token from localStorage.
   const token = localStorage.getItem("token");
-
-  // 2. Prepare the headers.
   const headers = {
     "Content-Type": "application/json",
-    ...options.headers, // Allow custom headers to be passed in
+    ...options.headers,
   };
-
-  // 3. If a token exists, add the Authorization header.
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
+  const fullUrl = `http://lvh.me:8080${url}`;
 
-  // 4. Make the fetch call with the correct URL and the new headers.
-  //    The relative URL (e.g., /api/branches) will be correctly handled by the Vite proxy.
-  const response = await fetch(url, {
-    ...options, // Pass through any other options like method, body, etc.
+  const response = await fetch(fullUrl, {
+    ...options,
     headers,
   });
 
-  // 5. Check for a 401 Unauthorized response specifically.
-  //    This can happen if the token expires.
-  if (response.status === 401) {
-    // Optional: Add logic to automatically log the user out.
-    console.error("Authentication error. Token might be expired. Logging out.");
-    // localStorage.clear();
-    // window.location.href = '/'; // Force a redirect to the login page
+  // --- THIS IS THE FIX ---
+  // If the response is a 204 No Content, there is no JSON body to parse.
+  // We can return null to signify a successful but empty response.
+  if (response.status === 204) {
+    return null;
   }
 
-  // 6. Basic response handling.
-  const data = await response.json();
+  const contentType = response.headers.get("content-type");
   if (!response.ok) {
-    throw new Error(
-      data.message || `Request failed with status ${response.status}`
-    );
+    const errorData =
+      contentType && contentType.includes("application/json")
+        ? await response.json()
+        : { message: `Request failed with status ${response.status}` };
+    throw new Error(errorData.message);
   }
 
-  return data;
+  // If we get here and there's no JSON, it's an unexpected issue, but we can handle it.
+  if (contentType && contentType.includes("application/json")) {
+    return response.json();
+  }
+  return null;
 };

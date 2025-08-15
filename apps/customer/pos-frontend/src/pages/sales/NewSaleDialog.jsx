@@ -16,11 +16,14 @@ const NewSaleDialog = ({ open, onClose, onSave, user, branch, branches, inventor
       if (open && user && branch) {
         try {
           const { invoice } = await authenticatedFetch("/api/sales/utils/new-invoice");
-          const datetime = new Date().toISOString().slice(0, 16);
+          // --- THIS IS THE FIX ---
+          // Send the full ISO string (including the 'Z' for UTC) to the backend.
+          const datetime = new Date().toISOString();
+          
           setForm({
             ...initialFormState,
             invoice,
-            datetime,
+            datetime, // Pass the full, correct timestamp
             branchId: branch.id,
             paymentType: settings?.paymentTypes[0] || "Cash",
             userId: user.id,
@@ -36,8 +39,7 @@ const NewSaleDialog = ({ open, onClose, onSave, user, branch, branches, inventor
 
   const availableProductsForSelectedBranch = useMemo(() => {
     if (!form.branchId) return [];
-    const filteredInventory = inventory.filter((inv) => Number(inv.branchId) === Number(form.branchId) && inv.stock > 0);
-    return filteredInventory.map((inv) => inv.product);
+    return inventory.filter((inv) => Number(inv.branchId) === Number(form.branchId) && inv.stock > 0).map((inv) => inv.product);
   }, [form.branchId, inventory]);
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
@@ -106,14 +108,11 @@ const NewSaleDialog = ({ open, onClose, onSave, user, branch, branches, inventor
         </Grid>
         <Box sx={{ mt: 3 }}>
           <Typography variant="h6" mb={1}>Items</Typography>
-
-          {/* --- THIS IS THE UX IMPROVEMENT --- */}
           {form.branchId && availableProductsForSelectedBranch.length === 0 && (
             <Alert severity="warning" sx={{ mb: 2 }}>
               No products with available stock found in the selected branch. Please add stock via the Inventory page.
             </Alert>
           )}
-
           {form.items.map((item, idx) => (
             <Grid container spacing={1} alignItems="center" key={idx} sx={{ mb: 1, flexWrap: "nowrap" }}>
               <Grid item sx={{ minWidth: 200, flexBasis: "20%" }}><FormControl fullWidth><InputLabel>Product</InputLabel><Select value={item.productId || ''} label="Product" onChange={(e) => handleItemChange(idx, "productId", e.target.value)} disabled={!form.branchId}>{availableProductsForSelectedBranch.map((p) => (<MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>))}</Select></FormControl></Grid>

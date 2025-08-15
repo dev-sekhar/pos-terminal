@@ -1,101 +1,122 @@
-import { PrismaClient, Prisma, Role } from '@prisma/client';
-import { getSettings } from './settingsService';
-import { UserContextPayload } from '../types/custom'; // 1. IMPORT THE CORRECT TYPE
+import { Prisma, Role } from '@prisma/client';
+import { UserContextPayload } from '../types/custom';
+import prisma from '../lib/prisma';
 
-const prisma = new PrismaClient();
+import zonedTimeToUtc from 'date-fns-tz/zonedTimeToUtc';
+import utcToZonedTime from 'date-fns-tz/utcToZonedTime';
+import startOfDay from 'date-fns/startOfDay';
+import startOfMonth from 'date-fns/startOfMonth';
+import startOfYear from 'date-fns/startOfYear';
 
-const saleWithItemsAndProducts = Prisma.validator<Prisma.SaleDefaultArgs>()({
-  include: { items: { include: { product: true } } },
-});
-type SaleWithProductItems = Prisma.SaleGetPayload<typeof saleWithItemsAndProducts>;
 
-const calculateSaleValue = (sale: SaleWithProductItems): number => {
-  if (!sale || !Array.isArray(sale.items)) return 0;
-  return sale.items.reduce((total, item) => {
-    const itemValue = (item.quantity || 0) * (item.price || 0) * (1 - (item.discount || 0) / 100);
-    return total + itemValue;
-  }, 0);
-};
+interface TenantSettings {
+  currency?: string;
+  timezone?: string;
+  tenantDisplayName?: string;
+  logo?: string;
+  units?: string[];
+  paymentTypes?: string[];
+}
 
-// 2. UPDATE THE FUNCTION SIGNATURE to use the UserContextPayload
 export const getDashboardMetrics = async (requestingUser: UserContextPayload) => {
   const { tenantId, role, branchId } = requestingUser;
-  
-  // The getSettings service now also needs to be updated to accept the payload
-  const settings = await getSettings(requestingUser);
 
-  const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const startOfYear = new Date(now.getFullYear(), 0, 1);
-  
-  // --- THIS IS THE RBAC LOGIC ---
-  // Create a base 'where' clause that can be modified
-  const salesWhereClause: Prisma.SaleWhereInput = {
-      tenantId,
-      deleted: false,
-  };
-  // If the user is a Manager, add a branch filter to all queries
-  if (role === Role.MANAGER) {
-      salesWhereClause.branchId = branchId;
+  const tenant = await prisma.tenant.findUnique({
+    where: { id: tenantId },
+    select: { settings: true },
+  });
+
+  let settings: TenantSettings = {};
+  if (tenant && typeof tenant.settings === 'object' && tenant.settings !== null) {
+      settings = tenant.settings as TenantSettings;
   }
-  // --- END RBAC LOGIC ---
-
-  const includeClause = { items: { include: { product: true } } };
-
-  const salesToday = await prisma.sale.findMany({
-    where: { ...salesWhereClause, createdAt: { gte: startOfToday } },
-    include: includeClause,
-  });
   
-  const salesThisMonth = await prisma.sale.findMany({
-    where: { ...salesWhereClause, createdAt: { gte: startOfMonth } },
-    include: includeClause,
-  });
+  const tenantTimezone = settings.timezone || 'UTC';
   
-  const salesThisYear = await prisma.sale.findMany({
-    where: { ...salesWhereClause, createdAt: { gte: startOfYear } },
-    include: includeClause,
-  });
+  const now = new Date();
+  const zonedNow = utcToZonedTime(now, tenantTimezone);
 
-  const totalToday = salesToday.reduce((sum, sale) => sum + calculateSaleValue(sale), 0);
+  const tenantTodayStart = startOfDay(zonedNow);
+  const tenantMonthStart = startOfMonth(zonedNow);
+  const tenantYearStart = startOfYear(zonedNow);
 
-  const mtdSalesByDay: Record<string, number> = {};
-  salesThisMonth.forEach(sale => {
-    const day = sale.createdAt.getDate().toString().padStart(2, '0');
-    mtdSalesByDay[day] = (mtdSalesByDay[day] || 0) + calculateSaleValue(sale);
-  });
-  const mtdData = Object.entries(mtdSalesByDay).map(([date, sales]) => ({ date, sales }));
+  const todayStartUTC = zonedTimeToUtc(tenantTodayStart, tenantTimezone);
+  const monthStartUTC = zonedTimeToUtc(tenantMonthStart, tenantTimezone);
+  const yearStartUTC = zonedTimeToUtc(tenantYearStart, tenantTimezone);
 
-  const ytdSalesByMonth: Record<string, number> = {};
-  salesThisYear.forEach(sale => {
-    const month = sale.createdAt.toISOString().slice(0, 7);
-    ytdSalesByMonth[month] = (ytdSalesByMonth[month] || 0) + calculateSaleValue(sale);
-  });
-  const fytdData = Object.entries(ytdSalesByMonth).map(([month, sales]) => ({ month, sales }));
-
-  const getTopProducts = (sales: SaleWithProductItems[]) => {
-    const productMap = new Map<string, number>();
-    sales.forEach(sale => {
-      sale.items.forEach(item => {
-        const productName = item.product.name;
-        const value = (item.quantity || 0) * (item.price || 0) * (1 - (item.discount || 0) / 100);
-        productMap.set(productName, (productMap.get(productName) || 0) + value);
-      });
-    });
-    return Array.from(productMap.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([name, value]) => ({ name, value: value.toFixed(2) }));
+  const scopeWhereClause: Prisma.SaleWhereInput = {
+    tenantId: tenantId,
+    deleted: false,
   };
+  if (role !== Role.ADMIN) {
+    scopeWhereClause.branchId = branchId;
+  }
+
+  const [
+    salesTodayData,
+    topProductsTodayData,
+    topProductsMonthData,
+    topProductsYearData
+  ] = await Promise.all([
+    prisma.sale.aggregate({
+      _sum: { total: true },
+      where: { ...scopeWhereClause, datetime: { gte: todayStartUTC } },
+    }),
+    prisma.saleItem.groupBy({
+      by: ['productId'],
+      _sum: { quantity: true },
+      where: { sale: { ...scopeWhereClause, datetime: { gte: todayStartUTC } } },
+      orderBy: { _sum: { quantity: 'desc' } },
+      take: 5
+    }),
+    prisma.saleItem.groupBy({
+        by: ['productId'],
+        _sum: { quantity: true },
+        where: { sale: { ...scopeWhereClause, datetime: { gte: monthStartUTC } } },
+        orderBy: { _sum: { quantity: 'desc' } },
+        take: 5
+    }),
+    prisma.saleItem.groupBy({
+        by: ['productId'],
+        _sum: { quantity: true },
+        where: { sale: { ...scopeWhereClause, datetime: { gte: yearStartUTC } } },
+        orderBy: { _sum: { quantity: 'desc' } },
+        take: 5
+    }),
+  ]);
+
+  type GroupByResult = {
+      productId: number;
+      _sum: { quantity: number | null };
+  };
+
+  const allProductIds = [
+      ...(topProductsTodayData as GroupByResult[]).map(p => p.productId),
+      ...(topProductsMonthData as GroupByResult[]).map(p => p.productId),
+      ...(topProductsYearData as GroupByResult[]).map(p => p.productId)
+  ];
+  const uniqueProductIds = [...new Set(allProductIds)];
+  const products = await prisma.product.findMany({
+      where: { id: { in: uniqueProductIds } },
+      select: { id: true, name: true, price: true }
+  });
+
+  const mapResults = (data: GroupByResult[]) => {
+      return data.map(item => {
+          const product = products.find(p => p.id === item.productId);
+          return {
+              name: product?.name || 'Unknown Product',
+              value: (item._sum.quantity || 0) * (product?.price || 0)
+          }
+      }).sort((a, b) => b.value - a.value);
+  }
 
   return {
-    totalToday,
-    mtdData,
-    fytdData,
-    topToday: getTopProducts(salesToday),
-    topMonth: getTopProducts(salesThisMonth),
-    topYear: getTopProducts(salesThisYear),
-    currency: settings.currency,
+    totalToday: salesTodayData._sum.total || 0,
+    mtdData: [],
+    fytdData: [],
+    topToday: mapResults(topProductsTodayData),
+    topMonth: mapResults(topProductsMonthData),
+    topYear: mapResults(topProductsYearData),
   };
 };

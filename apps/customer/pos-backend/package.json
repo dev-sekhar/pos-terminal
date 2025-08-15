@@ -4,7 +4,7 @@
   "description": "POS Backend API",
   "main": "dist/app.js",
   "scripts": {
-    "dev": "nodemon --exec ts-node src/app.ts",
+    "dev": "ts-node-dev --respawn --transpile-only --clear src/app.ts",
     "build": "tsc",
     "start": "node dist/app.js",
     "db:generate": "prisma generate",
@@ -12,15 +12,17 @@
     "db:studio": "prisma studio"
   },
   "dependencies": {
+    "@pos-terminal/permissions": "file:../../packages/permissions",
     "@prisma/client": "^6.12.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
+    "date-fns": "^2.30.0",
+    "date-fns-tz": "^2.0.1",
     "dotenv": "^16.6.1",
     "express": "^4.21.2",
     "express-validator": "^7.2.1",
     "helmet": "^7.2.0",
-    "jsonwebtoken": "^9.0.2",
-    "@pos-terminal/permissions": "file:../../packages/permissions"
+    "jsonwebtoken": "^9.0.2"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -30,6 +32,7 @@
     "nodemon": "^3.1.10",
     "prisma": "^6.12.0",
     "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
     "typescript": "^5.8.3"
   }
 }

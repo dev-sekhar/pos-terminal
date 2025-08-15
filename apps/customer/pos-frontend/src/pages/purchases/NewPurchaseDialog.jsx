@@ -26,7 +26,6 @@ const initialFormState = {
   supplierId: "",
   branchId: "",
   items: [],
-  // We add total and discount for consistency, even if not fully used yet
   total: 0,
   discount: 0,
 };
@@ -39,7 +38,7 @@ const NewPurchaseDialog = ({
   branches,
   products,
   suppliers,
-  settings, // Pass settings for currency
+  settings,
 }) => {
   const [form, setForm] = useState(initialFormState);
   const [formErrors, setFormErrors] = useState([]);
@@ -51,11 +50,14 @@ const NewPurchaseDialog = ({
           const { poNumber } = await authenticatedFetch(
             "/api/purchases/utils/new-ponumber"
           );
-          const datetime = new Date().toISOString().slice(0, 16);
+          // --- THIS IS THE FIX ---
+          // Send the full ISO string (including the 'Z' for UTC) to the backend.
+          const datetime = new Date().toISOString();
+
           setForm({
             ...initialFormState,
             poNumber,
-            datetime,
+            datetime, // Pass the full, correct timestamp
             branchId: branch?.id || "",
           });
           setFormErrors([]);
@@ -77,7 +79,6 @@ const NewPurchaseDialog = ({
     item[field] = value;
     if (field === "productId") {
       item.quantity = 1;
-      // Set the price from the product list
       const product = products.find((p) => p.id === value);
       item.price = product ? product.price : 0;
     }
@@ -134,7 +135,6 @@ const NewPurchaseDialog = ({
             {formErrors.join(", ")}
           </Alert>
         )}
-        {/* --- ADOPTED Grid LAYOUT FROM SALES --- */}
         <Grid container spacing={2}>
           <Grid item xs={12} sm={4}>
             <TextField
@@ -180,12 +180,10 @@ const NewPurchaseDialog = ({
             </FormControl>
           </Grid>
         </Grid>
-
         <Box sx={{ mt: 3 }}>
           <Typography variant="h6" mb={1}>
             Items
           </Typography>
-          {/* --- ADOPTED flexBasis LAYOUT FOR ITEMS --- */}
           {form.items.map((item, idx) => (
             <Grid
               container
