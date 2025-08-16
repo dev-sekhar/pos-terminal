@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import {
   Typography,
   Paper,
-  Grid,
+  Grid, // --- CORRECT: Using the standard Grid component
   Box,
   Alert,
   CircularProgress,
@@ -30,7 +30,6 @@ const initialMetrics = {
 
 const Dashboard = () => {
   const { tenant } = useTenant();
-  // We get settings, but we don't need its loading/error states for our guards.
   const { settings } = useSettings();
 
   const [metrics, setMetrics] = useState(initialMetrics);
@@ -54,14 +53,11 @@ const Dashboard = () => {
     fetchDashboardMetrics();
   }, [tenant]);
 
-  // --- THIS IS THE RESILIENT GUARD ---
-  // The component now only cares about its OWN loading and error state.
   if (loading) return <CircularProgress />;
   if (error) return <Alert severity="error">{error}</Alert>;
   if (!metrics)
     return <Alert severity="warning">Could not load dashboard data.</Alert>;
 
-  // Use the currency from settings if it exists, otherwise provide a safe default.
   const currency = settings?.currency || "$";
 
   return (
@@ -70,6 +66,7 @@ const Dashboard = () => {
         Dashboard
       </Typography>
       <Grid container spacing={3}>
+        {/* --- FIX: 'item' prop is required for Grid v1 --- */}
         <Grid item xs={12} md={4}>
           <Paper
             sx={{
@@ -82,10 +79,11 @@ const Dashboard = () => {
           >
             <Typography variant="subtitle1">Total Sales Today</Typography>
             <Typography variant="h5">
-              {currency} {metrics.totalToday.toFixed(2)}
+              {currency} {(metrics.totalToday || 0).toFixed(2)}
             </Typography>
           </Paper>
         </Grid>
+        {/* --- FIX: 'item' prop is required for Grid v1 --- */}
         <Grid item xs={12} md={4}>
           <Paper sx={{ p: 2, height: 220 }}>
             <Typography variant="subtitle1">Sales Chart (MTD)</Typography>
@@ -99,6 +97,7 @@ const Dashboard = () => {
             </ResponsiveContainer>
           </Paper>
         </Grid>
+        {/* --- FIX: 'item' prop is required for Grid v1 --- */}
         <Grid item xs={12} md={4}>
           <Paper sx={{ p: 2, height: 220 }}>
             <Typography variant="subtitle1">Sales Chart (FYTD)</Typography>
@@ -112,10 +111,11 @@ const Dashboard = () => {
             </ResponsiveContainer>
           </Paper>
         </Grid>
+        {/* --- FIX: 'item' prop is required for Grid v1 --- */}
         <Grid item xs={12} md={4}>
           <Paper sx={{ p: 2, height: 220 }}>
             <Typography variant="subtitle1">Top 5 Products Today</Typography>
-            {metrics.topToday.map((p) => (
+            {(metrics.topToday || []).map((p) => (
               <Box
                 key={p.name}
                 sx={{ display: "flex", justifyContent: "space-between" }}
@@ -128,12 +128,13 @@ const Dashboard = () => {
             ))}
           </Paper>
         </Grid>
+        {/* --- FIX: 'item' prop is required for Grid v1 --- */}
         <Grid item xs={12} md={4}>
           <Paper sx={{ p: 2, height: 220 }}>
             <Typography variant="subtitle1">
               Top 5 Products This Month
             </Typography>
-            {metrics.topMonth.map((p) => (
+            {(metrics.topMonth || []).map((p) => (
               <Box
                 key={p.name}
                 sx={{ display: "flex", justifyContent: "space-between" }}
@@ -146,12 +147,13 @@ const Dashboard = () => {
             ))}
           </Paper>
         </Grid>
+        {/* --- FIX: 'item' prop is required for Grid v1 --- */}
         <Grid item xs={12} md={4}>
           <Paper sx={{ p: 2, height: 220 }}>
             <Typography variant="subtitle1">
               Top 5 Products This Year
             </Typography>
-            {metrics.topYear.map((p) => (
+            {(metrics.topYear || []).map((p) => (
               <Box
                 key={p.name}
                 sx={{ display: "flex", justifyContent: "space-between" }}

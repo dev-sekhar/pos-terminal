@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react"; // <-- THIS LINE IS NOW CORRECT
+import React, { useState, useMemo } from "react";
 import {
   Box,
   Typography,
@@ -9,7 +9,7 @@ import {
   ListItem,
   ListItemText,
   IconButton,
-  Grid,
+  Grid, // --- CORRECT: Using the standard Grid component
   Paper,
   Alert,
   CircularProgress,
@@ -195,6 +195,7 @@ const Settings = () => {
       <Paper sx={{ p: 2, mb: 3 }}>
         <Typography variant="h6">Localization</Typography>
         <Grid container spacing={2} sx={{ mt: 0.5 }}>
+          {/* --- FIX: 'item' prop is required for Grid v1 --- */}
           <Grid item xs={12} sm={6} md={4}>
             <TextField
               select
@@ -212,6 +213,7 @@ const Settings = () => {
               ))}
             </TextField>
           </Grid>
+          {/* --- FIX: 'item' prop is required for Grid v1 --- */}
           <Grid item xs={12} sm={6} md={4}>
             <TextField
               select
@@ -233,6 +235,7 @@ const Settings = () => {
       </Paper>
 
       <Grid container spacing={3}>
+        {/* --- FIX: 'item' prop is required for Grid v1 --- */}
         <Grid item xs={12} md={6}>
           <Paper sx={{ p: 2, height: "100%" }}>
             <Typography variant="h6">Units of Measurement</Typography>
@@ -273,6 +276,7 @@ const Settings = () => {
             </List>
           </Paper>
         </Grid>
+        {/* --- FIX: 'item' prop is required for Grid v1 --- */}
         <Grid item xs={12} md={6}>
           <Paper sx={{ p: 2, height: "100%" }}>
             <Typography variant="h6">Payment Types</Typography>
