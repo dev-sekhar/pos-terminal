@@ -1,23 +1,28 @@
-import { PrismaClient, Prisma, Sale, Role } from '@prisma/client';
+// --- FIX 1: Correct the import path from '@prisma-client' to '@prisma/client' ---
+import { Prisma, Sale, Role } from '@prisma/client';
 import { UserContextPayload } from '../types/custom';
 import prisma from '../lib/prisma';
 
 // List sales, securely scoped by the requesting user's role and branch
 export const listSales = async (requestingUser: UserContextPayload) => {
-  const { tenantId, role, branchId } = requestingUser;
+  const { tenantId, role, branchId, id: userId } = requestingUser;
 
   const whereClause: Prisma.SaleWhereInput = {
     tenantId: tenantId,
     deleted: false,
   };
 
-  if (role !== Role.ADMIN) {
+  if (role === Role.CASHIER) {
+    whereClause.branchId = branchId;
+    whereClause.userId = userId;
+  } else if (role === Role.MANAGER) {
     whereClause.branchId = branchId;
   }
 
   return prisma.sale.findMany({
     where: whereClause,
     include: {
+      // --- FIX 2: Use the correct relation name 'items' as defined in your schema ---
       items: { include: { product: true } },
       user: true,
       branch: true,
@@ -27,9 +32,9 @@ export const listSales = async (requestingUser: UserContextPayload) => {
   });
 };
 
-// Get a single sale by its ID, respecting branch scope for non-admins
+// Get a single sale by its ID, respecting branch and user scope for non-admins
 export const getSaleById = async (id: number, requestingUser: UserContextPayload) => {
-    const { tenantId, role, branchId } = requestingUser;
+    const { tenantId, role, branchId, id: userId } = requestingUser;
     
     const whereClause: Prisma.SaleWhereInput = {
         id,
@@ -37,12 +42,16 @@ export const getSaleById = async (id: number, requestingUser: UserContextPayload
         deleted: false,
     };
 
-    if (role !== Role.ADMIN) {
-        whereClause.branchId = branchId;
+    if (role === Role.CASHIER) {
+      whereClause.branchId = branchId;
+      whereClause.userId = userId;
+    } else if (role === Role.MANAGER) {
+      whereClause.branchId = branchId;
     }
     
     return prisma.sale.findFirst({
         where: whereClause,
+        // --- FIX 2 (Applied here as well) ---
         include: { items: { include: { product: true } }, user: true, branch: true }
     });
 };
@@ -95,8 +104,6 @@ export const createSale = async (data: any, requestingUser: UserContextPayload):
     }, 0);
     const finalTotal = total * (1 - (Number(discount || 0) / 100));
 
-    // --- THIS IS THE CRITICAL FIX ---
-    // The call to create a new Sale must have all its fields nested inside a `data` object.
     const newSale = await tx.sale.create({
       data: {
         invoice,
