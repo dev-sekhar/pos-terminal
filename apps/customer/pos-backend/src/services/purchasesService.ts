@@ -53,7 +53,10 @@ export const createPurchase = async (data: any, requestingUser: UserContextPaylo
       purchaseId: newPurchase.id,
     }));
     await tx.purchaseItem.createMany({ data: itemsToCreate });
-    const result = await tx.purchase.findUnique({ where: { id: newPurchase.id }, include: { items: true } });
+    const result = await tx.purchase.findUnique({ 
+      where: { id: newPurchase.id }, 
+      include: { items: { include: { product: true } }, supplier: true, branch: true, createdBy: true }
+    });
     if (!result) throw new Error("Failed to create purchase.");
     return result;
   });

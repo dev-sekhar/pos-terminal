@@ -136,7 +136,12 @@ export const createSale = async (data: any, requestingUser: UserContextPayload):
       });
     }
 
-    return newSale;
+    const result = await tx.sale.findUnique({ 
+      where: { id: newSale.id }, 
+      include: { items: { include: { product: true } }, user: true, branch: true, createdBy: true }
+    });
+    if (!result) throw new Error("Failed to create sale.");
+    return result;
   });
 };
 

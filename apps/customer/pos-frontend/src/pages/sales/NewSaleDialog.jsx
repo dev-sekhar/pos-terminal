@@ -110,13 +110,13 @@ const NewSaleDialog = ({ open, onClose, onSave, user, branch, branches, inventor
             </Alert>
           )}
           {form.items.map((item, idx) => (
-            <Grid container spacing={1} alignItems="center" key={idx} sx={{ mb: 1, flexWrap: "nowrap" }}>
-              <Grid item sx={{ minWidth: 200, flexBasis: "20%" }}><FormControl fullWidth><InputLabel>Product</InputLabel><Select value={item.productId || ''} label="Product" onChange={(e) => handleItemChange(idx, "productId", e.target.value)} disabled={!form.branchId}>{availableProductsForSelectedBranch.map((p) => (<MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>))}</Select></FormControl></Grid>
-              <Grid item sx={{ flexBasis: "8%" }}><TextField label="Qty" type="number" value={item.quantity} onChange={(e) => handleItemChange(idx, "quantity", e.target.value)} fullWidth /></Grid>
-              <Grid item sx={{ flexBasis: "8%" }}><TextField label="Discount (%)" type="number" value={item.discount} onChange={(e) => handleItemChange(idx, "discount", e.target.value)} fullWidth /></Grid>
-              <Grid item sx={{ flexBasis: "8%" }}><TextField label="Tax (%)" type="number" value={item.tax} onChange={(e) => handleItemChange(idx, "tax", e.target.value)} fullWidth /></Grid>
-              <Grid item sx={{ flexBasis: "12%" }}><Typography variant="body1" align="center" sx={{ fontWeight: "bold" }}>{currency} {calcItemTotal(item).toFixed(2)}</Typography></Grid>
-              <Grid item sx={{ flexBasis: "6%", textAlign: "right" }}><IconButton onClick={() => handleRemoveItem(idx)} color="error"><RemoveIcon /></IconButton></Grid>
+            <Grid container spacing={1} alignItems="center" key={idx} sx={{ mb: 1 }}>
+              <Grid item xs={4}><FormControl fullWidth><InputLabel>Product</InputLabel><Select value={item.productId || ''} label="Product" onChange={(e) => handleItemChange(idx, "productId", e.target.value)} disabled={!form.branchId}>{availableProductsForSelectedBranch.map((p) => (<MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>))}</Select></FormControl></Grid>
+              <Grid item xs={1.5}><TextField label="Qty" type="number" value={item.quantity} onChange={(e) => handleItemChange(idx, "quantity", e.target.value)} fullWidth /></Grid>
+              <Grid item xs={1.5}><TextField label="Disc %" type="number" value={item.discount} onChange={(e) => handleItemChange(idx, "discount", e.target.value)} fullWidth /></Grid>
+              <Grid item xs={1.5}><TextField label="Tax %" type="number" value={item.tax} onChange={(e) => handleItemChange(idx, "tax", e.target.value)} fullWidth /></Grid>
+              <Grid item xs={3.5}><Typography variant="body1" align="center" sx={{ fontWeight: "bold", mt: 2 }}>{currency} {calcItemTotal(item).toFixed(2)}</Typography></Grid>
+
             </Grid>
           ))}
           <Button startIcon={<AddIcon />} onClick={handleAddItem} sx={{ mt: 1 }} disabled={!form.branchId || availableProductsForSelectedBranch.length === 0}>

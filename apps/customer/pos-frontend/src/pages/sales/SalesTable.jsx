@@ -36,6 +36,7 @@ const SalesTable = ({
             <TableCell>Date/Time</TableCell>
             <TableCell>Invoice #</TableCell>
             <TableCell>Salesperson</TableCell>
+            <TableCell>Branch</TableCell>
             <TableCell>Total</TableCell>
             <TableCell>Actions</TableCell>
           </TableRow>
@@ -43,7 +44,7 @@ const SalesTable = ({
         <TableBody>
           {sales.map((s) => (
             <React.Fragment key={s.id}>
-              <TableRow>
+              <TableRow data-sale-id={s.id}>
                 <TableCell>
                   <IconButton size="small" onClick={() => onExpandClick(s.id)}>
                     {expanded[s.id] ? (
@@ -58,6 +59,7 @@ const SalesTable = ({
                 </TableCell>
                 <TableCell>{s.invoice}</TableCell>
                 <TableCell>{s.user?.name || "N/A"}</TableCell>
+                <TableCell>{s.branch?.name || "N/A"}</TableCell>
                 <TableCell>
                   {currency} {s.total.toFixed(2)}
                 </TableCell>
@@ -79,7 +81,7 @@ const SalesTable = ({
                 </TableCell>
               </TableRow>
               <TableRow>
-                <TableCell style={{ padding: 0 }} colSpan={6}>
+                <TableCell style={{ padding: 0 }} colSpan={7}>
                   <Collapse in={expanded[s.id]} timeout="auto" unmountOnExit>
                     <Box m={2}>
                       <Table size="small">
@@ -88,6 +90,8 @@ const SalesTable = ({
                             <TableCell>Product</TableCell>
                             <TableCell>Qty</TableCell>
                             <TableCell>Price</TableCell>
+                            <TableCell>Discount</TableCell>
+                            <TableCell>Tax</TableCell>
                             <TableCell>Total</TableCell>
                           </TableRow>
                         </TableHead>
@@ -98,6 +102,12 @@ const SalesTable = ({
                               <TableCell>{item.quantity}</TableCell>
                               <TableCell>
                                 {currency} {item.price.toFixed(2)}
+                              </TableCell>
+                              <TableCell>
+                                {item.discount ? `${currency} ${item.discount.toFixed(2)}` : '-'}
+                              </TableCell>
+                              <TableCell>
+                                {item.tax ? `${currency} ${item.tax.toFixed(2)}` : '-'}
                               </TableCell>
                               <TableCell>
                                 {currency} {calcItemTotal(item).toFixed(2)}

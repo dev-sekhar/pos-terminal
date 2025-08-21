@@ -34,7 +34,18 @@ const app: Express = express();
 // --- GLOBAL MIDDLEWARE ---
 app.use(helmet());
 app.use(cors({
-  origin: ['http://lvh.me:8080', 'http://zeta.lvh.me:8080', 'http://localhost:3000'],
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // Allow localhost and lvh.me subdomains
+    if (origin.match(/^http:\/\/(.*\.)?lvh\.me:8080$/) || 
+        origin.match(/^http:\/\/localhost:(3000|8080)$/)) {
+      return callback(null, true);
+    }
+    
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials: true
 }));
 app.use(express.json());

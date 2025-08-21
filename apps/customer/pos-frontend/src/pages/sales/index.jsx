@@ -68,12 +68,22 @@ const Sales = () => {
     };
     
     try {
-      await authenticatedFetch("/api/sales", {
+      const newSale = await authenticatedFetch("/api/sales", {
         method: "POST",
         body: JSON.stringify(saleData),
       });
       setOpen(false);
       fetchData();
+      // Highlight the newly added sale
+      setTimeout(() => {
+        const element = document.querySelector(`[data-sale-id="${newSale.id}"]`);
+        if (element) {
+          element.style.backgroundColor = '#e8f5e8';
+          setTimeout(() => {
+            element.style.backgroundColor = '';
+          }, 3000);
+        }
+      }, 100);
     } catch (err) {
       throw err;
     }
@@ -123,7 +133,15 @@ const Sales = () => {
           label: "Subtotal",
           value: `${currency} ${calcSubtotal(saleToPrint.items).toFixed(2)}`,
         },
-        { label: "Discount", value: `${saleToPrint.discount || 0}%` },
+        { 
+          label: "Item Discount", 
+          value: `${currency} ${saleToPrint.items.reduce((sum, item) => sum + (item.discount || 0), 0).toFixed(2)}` 
+        },
+        { 
+          label: "Item Tax", 
+          value: `${currency} ${saleToPrint.items.reduce((sum, item) => sum + (item.tax || 0), 0).toFixed(2)}` 
+        },
+        { label: "Sale Discount", value: `${saleToPrint.discount || 0}%` },
         {
           label: "Total",
           value: `${currency} ${calcTotal(

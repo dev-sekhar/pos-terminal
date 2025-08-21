@@ -79,8 +79,6 @@ const NewPurchaseDialog = ({
     item[field] = value;
     if (field === "productId") {
       item.quantity = 1;
-      const product = products.find((p) => p.id === value);
-      item.price = product ? product.price : 0;
     }
 
     newItems[idx] = item;
@@ -92,13 +90,17 @@ const NewPurchaseDialog = ({
     if (lastItem && !lastItem.productId) return;
     setForm((f) => ({
       ...f,
-      items: [...f.items, { productId: "", quantity: 1, price: 0 }],
+      items: [...f.items, { productId: "", quantity: 1 }],
     }));
   };
   const handleRemoveItem = (idx) =>
     setForm((f) => ({ ...f, items: f.items.filter((_, i) => i !== idx) }));
 
   const handleSaveClick = async () => {
+    if (!form.supplierId) {
+      setFormErrors(["Please select a supplier."]);
+      return;
+    }
     if (form.items.length === 0) {
       setFormErrors(["Cannot create a purchase with no items."]);
       return;
@@ -117,12 +119,7 @@ const NewPurchaseDialog = ({
     }
   };
 
-  const calculateTotal = () => {
-    return form.items.reduce(
-      (acc, item) => acc + item.quantity * item.price,
-      0
-    );
-  };
+
 
   const currency = settings?.currency || "$";
 
@@ -211,7 +208,7 @@ const NewPurchaseDialog = ({
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid item sx={{ flexBasis: "15%" }}>
+              <Grid item sx={{ flexBasis: "60%" }}>
                 <TextField
                   label="Qty"
                   type="number"
@@ -221,32 +218,6 @@ const NewPurchaseDialog = ({
                   }
                   fullWidth
                 />
-              </Grid>
-              <Grid item sx={{ flexBasis: "20%" }}>
-                <TextField
-                  label="Price"
-                  type="number"
-                  value={item.price}
-                  onChange={(e) =>
-                    handleItemChange(idx, "price", e.target.value)
-                  }
-                  fullWidth
-                  InputProps={{
-                    startAdornment: (
-                      <Typography sx={{ mr: 1 }}>{currency}</Typography>
-                    ),
-                  }}
-                />
-              </Grid>
-              <Grid item sx={{ flexBasis: "20%", textAlign: "center" }}>
-                <Typography variant="body1" sx={{ fontWeight: "bold" }}>
-                  {currency} {(item.quantity * item.price).toFixed(2)}
-                </Typography>
-              </Grid>
-              <Grid item sx={{ flexBasis: "5%", textAlign: "right" }}>
-                <IconButton onClick={() => handleRemoveItem(idx)} color="error">
-                  <RemoveIcon />
-                </IconButton>
               </Grid>
             </Grid>
           ))}
@@ -259,13 +230,7 @@ const NewPurchaseDialog = ({
             Add Item
           </Button>
         </Box>
-        <Grid container spacing={2} alignItems="center" sx={{ mt: 2 }}>
-          <Grid item xs={12} sx={{ textAlign: "right" }}>
-            <Typography variant="h6">
-              Total: {currency} {calculateTotal().toFixed(2)}
-            </Typography>
-          </Grid>
-        </Grid>
+
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>

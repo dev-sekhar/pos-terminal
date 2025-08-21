@@ -18,20 +18,20 @@ const PurchasesTable = ({ purchases, expanded, onExpandClick, onPrint, onDelete,
             <TableCell>Date/Time</TableCell>
             <TableCell>PO #</TableCell>
             <TableCell>Supplier</TableCell>
-            <TableCell>Total</TableCell>
+            <TableCell>Branch</TableCell>
             <TableCell>Actions</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
           {purchases.map(p => (
             <React.Fragment key={p.id}>
-              <TableRow>
+              <TableRow data-purchase-id={p.id}>
                 <TableCell><IconButton size="small" onClick={() => onExpandClick(p.id)}>{expanded[p.id] ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}</IconButton></TableCell>
                 {/* --- THIS IS THE FIX --- */}
                 <TableCell>{formatDate(p.datetime, settings?.timezone)}</TableCell>
                 <TableCell>{p.poNumber}</TableCell>
                 <TableCell>{p.supplier?.name || 'N/A'}</TableCell>
-                <TableCell>{currency} {p.total.toFixed(2)}</TableCell>
+                <TableCell>{p.branch?.name || 'N/A'}</TableCell>
                 <TableCell>
                   <IconButton onClick={() => onPrint(p)} size="small" title="Print PO"><PrintIcon /></IconButton>
                   <IconButton onClick={() => onDelete(p.id)} color="error" size="small"><DeleteIcon /></IconButton>
@@ -42,13 +42,11 @@ const PurchasesTable = ({ purchases, expanded, onExpandClick, onPrint, onDelete,
                   <Collapse in={expanded[p.id]} timeout="auto" unmountOnExit>
                     <Box m={2}>
                       <Table size="small">
-                        <TableHead><TableRow><TableCell>Product</TableCell><TableCell>Quantity</TableCell><TableCell>Price</TableCell><TableCell>Total</TableCell></TableRow></TableHead>
+                        <TableHead><TableRow><TableCell>Product</TableCell><TableCell>Quantity</TableCell></TableRow></TableHead>
                         <TableBody>{p.items.map(item => (
                           <TableRow key={item.id}>
                             <TableCell>{item.product.name}</TableCell>
                             <TableCell>{item.quantity}</TableCell>
-                            <TableCell>{currency} {(item.price || 0).toFixed(2)}</TableCell>
-                            <TableCell>{currency} {(item.quantity * (item.price || 0)).toFixed(2)}</TableCell>
                           </TableRow>
                         ))}</TableBody>
                       </Table>

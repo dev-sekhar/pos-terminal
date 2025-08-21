@@ -1,9 +1,9 @@
 import * as Yup from 'yup';
 const saleItemSchema = Yup.object().shape({
     productId: Yup.number()
-        .typeError("Product ID must be a number")
-        .required("Product is required")
-        .positive("Product ID must be positive"),
+        .typeError("Please select a product")
+        .required("Please select a product")
+        .positive("Please select a valid product"),
     quantity: Yup.number()
         .typeError("Quantity must be a number")
         .required("Quantity is required")

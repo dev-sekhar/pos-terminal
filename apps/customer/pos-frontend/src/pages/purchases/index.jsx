@@ -62,12 +62,22 @@ const Purchases = () => {
   }, [fetchData]);
 
   const handleSave = async (formData) => {
-    await authenticatedFetch("/api/purchases", {
+    const newPurchase = await authenticatedFetch("/api/purchases", {
       method: "POST",
       body: JSON.stringify(formData),
     });
     setOpen(false);
     fetchData();
+    // Highlight the newly added purchase
+    setTimeout(() => {
+      const element = document.querySelector(`[data-purchase-id="${newPurchase.id}"]`);
+      if (element) {
+        element.style.backgroundColor = '#e8f5e8';
+        setTimeout(() => {
+          element.style.backgroundColor = '';
+        }, 3000);
+      }
+    }, 100);
   };
 
   const handleDelete = async (id) => {
@@ -100,14 +110,7 @@ const Purchases = () => {
         item.product.name,
         item.quantity,
       ]),
-      totals: [
-        {
-          label: "Total",
-          value: `${settings?.currency || "$"} ${purchaseToPrint.total.toFixed(
-            2
-          )}`,
-        },
-      ],
+      totals: [],
     };
     setPrintData(dataForPrint);
     setTimeout(() => {
