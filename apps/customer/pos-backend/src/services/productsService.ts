@@ -78,23 +78,34 @@ export const deleteProduct = async (id: number, requestingUser: UserContextPaylo
 };
 
 export const generateNewProductCode = async (requestingUser: UserContextPayload): Promise<string> => {
-    const today = new Date();
-    const datePart = today.toISOString().slice(0, 10).replace(/-/g, '');
-    const prefix = `P${datePart}-`;
-    const lastProduct = await prisma.product.findFirst({
-        where: { tenantId: requestingUser.tenantId, code: { startsWith: prefix } },
-        orderBy: { code: 'desc' },
-    });
-    let nextNum = 1;
-    if (lastProduct) {
-        // Correctly split by the last '-', not the first.
-        const parts = lastProduct.code.split('-');
-        const lastNum = parseInt(parts[parts.length - 1], 10);
-        if (!isNaN(lastNum)) {
-            nextNum = lastNum + 1;
+    try {
+        console.log('Generating product code for tenant:', requestingUser.tenantId);
+        const today = new Date();
+        const datePart = today.toISOString().slice(0, 10).replace(/-/g, '');
+        const prefix = `P${datePart}-`;
+        console.log('Using prefix:', prefix);
+        
+        const lastProduct = await prisma.product.findFirst({
+            where: { tenantId: requestingUser.tenantId, code: { startsWith: prefix } },
+            orderBy: { code: 'desc' },
+        });
+        console.log('Last product found:', lastProduct);
+        
+        let nextNum = 1;
+        if (lastProduct) {
+            const parts = lastProduct.code.split('-');
+            const lastNum = parseInt(parts[parts.length - 1], 10);
+            if (!isNaN(lastNum)) {
+                nextNum = lastNum + 1;
+            }
         }
+        const newCode = `${prefix}${String(nextNum).padStart(3, '0')}`;
+        console.log('Generated new code:', newCode);
+        return newCode;
+    } catch (error) {
+        console.error('Error in generateNewProductCode:', error);
+        throw error;
     }
-    return `${prefix}${String(nextNum).padStart(3, '0')}`;
 };
 
 export const importProductsFromCSV = async (products: Prisma.ProductUncheckedCreateInput[], requestingUser: UserContextPayload) => {

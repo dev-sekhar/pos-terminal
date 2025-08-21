@@ -2,6 +2,8 @@ import { Router } from 'express';
 import * as settingsController from '../controllers/settingsController';
 import { rbacMiddleware } from '../middleware/rbacMiddleware';
 import { PERMISSIONS } from '@pos-terminal/permissions';
+import { validate } from '../middleware/validate';
+import { settingsSchema } from '@pos-terminal/schemas/dist/settingsSchema';
 
 const router = Router();
 
@@ -12,6 +14,6 @@ const router = Router();
 
 router.get('/', rbacMiddleware(PERMISSIONS.VIEW_REPORTS), settingsController.getSettings);
 
-router.put('/', rbacMiddleware(PERMISSIONS.MANAGE_SETTINGS), settingsController.updateSettings);
+router.put('/', rbacMiddleware(PERMISSIONS.MANAGE_SETTINGS), validate(settingsSchema), settingsController.updateSettings);
 
 export default router;

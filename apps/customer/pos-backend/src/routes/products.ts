@@ -10,14 +10,16 @@ const router = Router();
 // --- THIS IS THE CORRECT PERMISSION FOR VIEWING ---
 // Managers and Admins have VIEW_PRODUCTS.
 router.get('/', rbacMiddleware(PERMISSIONS.VIEW_PRODUCTS), productsController.listProducts);
-router.get('/:id', rbacMiddleware(PERMISSIONS.VIEW_PRODUCTS), productsController.getProductById);
 
 // --- ONLY ADMINS CAN MANAGE (CREATE/EDIT/DELETE) ---
 const canManageProducts = rbacMiddleware(PERMISSIONS.MANAGE_PRODUCTS);
-router.post('/', canManageProducts, validate(productSchema), productsController.createProduct);
-router.put('/:id', canManageProducts, validate(productSchema), productsController.updateProduct);
-router.delete('/:id', canManageProducts, productsController.deleteProduct);
 router.get('/utils/new-code', canManageProducts, productsController.getNewProductCode);
 router.post('/import', canManageProducts, productsController.importProducts);
+router.post('/', canManageProducts, validate(productSchema), productsController.createProduct);
+
+// Parameterized routes must come last
+router.get('/:id', rbacMiddleware(PERMISSIONS.VIEW_PRODUCTS), productsController.getProductById);
+router.put('/:id', canManageProducts, validate(productSchema), productsController.updateProduct);
+router.delete('/:id', canManageProducts, productsController.deleteProduct);
 
 export default router;

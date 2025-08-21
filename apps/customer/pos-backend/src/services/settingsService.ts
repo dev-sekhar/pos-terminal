@@ -19,7 +19,15 @@ export const getSettings = async (requestingUser: User): Promise<TenantSettings>
     throw new Error("Tenant not found.");
   }
 
-  return (tenant.settings as TenantSettings) || {};
+  const defaultSettings = {
+    currency: 'USD',
+    timezone: 'UTC',
+    units: ['pcs', 'kg', 'ltr', 'box', 'pack'],
+    paymentTypes: ['Cash', 'Card', 'UPI', 'Bank Transfer'],
+    tenantDisplayName: ''
+  };
+
+  return { ...defaultSettings, ...(tenant.settings as TenantSettings) };
 };
 
 /**
@@ -29,39 +37,44 @@ export const getSettings = async (requestingUser: User): Promise<TenantSettings>
  * @returns The updated settings object.
  */
 export const updateSettings = async (requestingUser: User, newSettingsData: Partial<TenantSettings>): Promise<TenantSettings> => {
-  return prisma.$transaction(async (tx) => {
-    // 1. Get the current tenant to retrieve old settings for the audit trail
-    const tenant = await tx.tenant.findUnique({ where: { id: requestingUser.tenantId } });
-    if (!tenant) {
-      throw new Error("Tenant not found.");
-    }
+  try {
+    return await prisma.$transaction(async (tx) => {
+      // 1. Get the current tenant to retrieve old settings for the audit trail
+      const tenant = await tx.tenant.findUnique({ where: { id: requestingUser.tenantId } });
+      if (!tenant) {
+        throw new Error("Tenant not found.");
+      }
 
-    const oldSettings = (tenant.settings as TenantSettings) || {};
-    // Merge new settings with old ones to ensure no data is lost
-    const newSettings = { ...oldSettings, ...newSettingsData };
-    
-    // 2. Create the audit log record
-    await tx.auditLog.create({
-      data: {
-        tenantId: requestingUser.tenantId,
-        userId: requestingUser.id,
-        action: 'TENANT_SETTINGS_UPDATED',
-        details: {
-          oldValue: oldSettings,
-          newValue: newSettings,
-          changedBy: { id: requestingUser.id, email: requestingUser.email },
+      const oldSettings = (tenant.settings as TenantSettings) || {};
+      // Merge new settings with old ones to ensure no data is lost
+      const newSettings = { ...oldSettings, ...newSettingsData };
+      
+      // 2. Create the audit log record
+      await tx.auditLog.create({
+        data: {
+          tenantId: requestingUser.tenantId,
+          userId: requestingUser.id,
+          action: 'TENANT_SETTINGS_UPDATED',
+          details: {
+            oldValue: oldSettings,
+            newValue: newSettings,
+            changedBy: { id: requestingUser.id, email: requestingUser.email },
+          },
         },
-      },
-    });
+      });
 
-    // 3. Update the tenant with the fully merged new settings
-    const updatedTenant = await tx.tenant.update({
-      where: { id: requestingUser.tenantId },
-      data: {
-        settings: newSettings,
-      },
-    });
+      // 3. Update the tenant with the fully merged new settings
+      const updatedTenant = await tx.tenant.update({
+        where: { id: requestingUser.tenantId },
+        data: {
+          settings: newSettings,
+        },
+      });
 
-    return updatedTenant.settings as TenantSettings;
-  });
+      return updatedTenant.settings as TenantSettings;
+    });
+  } catch (error) {
+    console.error('Settings update error:', error);
+    throw new Error(`Failed to update settings: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
 };

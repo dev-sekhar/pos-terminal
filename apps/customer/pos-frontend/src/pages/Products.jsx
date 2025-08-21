@@ -104,17 +104,23 @@ const Products = () => {
       });
     } else {
       try {
-        const { code } = await authenticatedFetch(
+        console.log('Settings:', settings);
+        const response = await authenticatedFetch(
           "/api/products/utils/new-code"
         );
+        const { code } = response;
         setCurrentProduct({
           ...initialFormState,
           code,
-          unit: settings?.units[0] || "",
+          unit: settings?.units?.[0] || "pcs",
         });
       } catch (err) {
-        setError("Could not fetch a new product code.");
-        setCurrentProduct(initialFormState);
+        console.error('Error fetching product code:', err);
+        setCurrentProduct({
+          ...initialFormState,
+          code: `P${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-001`,
+          unit: "pcs"
+        });
       }
     }
     setOpen(true);
@@ -222,8 +228,7 @@ const Products = () => {
     return <Alert severity="error">{error || settingsError}</Alert>;
   if (!loggedInUser) return null;
 
-  const canManage =
-    loggedInUser.role === "ADMIN" || loggedInUser.role === "MANAGER";
+  const canManage = loggedInUser.role === "ADMIN";
   
   const currency = settings?.currency || '$';
 
@@ -332,20 +337,21 @@ const Products = () => {
           )}
           <TextField
             margin="dense"
+            label="Product Code"
+            name="code"
+            value={currentProduct.code}
+            fullWidth
+            InputProps={{ readOnly: true }}
+            disabled
+          />
+          <TextField
+            margin="dense"
             label="Product Name"
             name="name"
             value={currentProduct.name}
             onChange={handleChange}
             fullWidth
             autoFocus
-          />
-          <TextField
-            margin="dense"
-            label="Code"
-            name="code"
-            value={currentProduct.code}
-            fullWidth
-            InputProps={{ readOnly: true }}
           />
           <FormControl margin="dense" fullWidth>
             <InputLabel>Category</InputLabel>
@@ -370,7 +376,7 @@ const Products = () => {
               value={currentProduct.unit}
               onChange={handleChange}
             >
-              {(settings?.units || []).map((unit) => (
+              {(settings?.units || ['pcs', 'kg', 'ltr', 'box', 'pack']).map((unit) => (
                 <MenuItem key={unit} value={unit}>
                   {unit}
                 </MenuItem>

@@ -226,7 +226,7 @@ model SaleItem {
 model Supplier {
   id          Int                  @id @default(autoincrement())
   name        String               @unique
-  contact     String?
+  contact     String?              @unique
   email       String?              @unique
   address     String?
   active      Boolean              @default(true)

@@ -17,22 +17,42 @@ export const listSuppliersForTenant = async (tenantId: string): Promise<Supplier
 
 // This is the core "smart" function.
 export const createOrLinkSupplier = async (data: Prisma.SupplierCreateInput, tenantId: string, createdById: number): Promise<Supplier> => {
-  // Use a unique identifier like email or name to find existing suppliers. Name is used here.
   const { name, contact, email, address, active } = data;
 
-  // Prisma's 'upsert' is perfect for this: create if not exists, otherwise do nothing.
-  const supplier = await prisma.supplier.upsert({
-    where: { name }, // Assumes supplier name is globally unique
-    update: {}, // If supplier exists, we don't need to change it
-    create: { // If supplier does not exist, create it in the global pool
-      name,
-      contact,
-      email,
-      address,
-      active,
-      createdById,
+  // Check if supplier already exists by name, email, or contact
+  let supplier = await prisma.supplier.findFirst({
+    where: {
+      OR: [
+        { name },
+        ...(email ? [{ email }] : []),
+        ...(contact ? [{ contact }] : [])
+      ]
     }
   });
+
+  // If supplier exists with same contact or email but different name, throw error
+  if (supplier && supplier.name !== name) {
+    if (supplier.email === email) {
+      throw new Error(`Email ${email} is already associated with supplier "${supplier.name}"`);
+    }
+    if (supplier.contact === contact) {
+      throw new Error(`Contact ${contact} is already associated with supplier "${supplier.name}"`);
+    }
+  }
+
+  // If supplier doesn't exist, create it
+  if (!supplier) {
+    supplier = await prisma.supplier.create({
+      data: {
+        name,
+        contact,
+        email,
+        address,
+        active,
+        createdById,
+      }
+    });
+  }
 
   // Now, link this supplier to the current tenant.
   // Use 'upsert' again to avoid errors if the link already exists.

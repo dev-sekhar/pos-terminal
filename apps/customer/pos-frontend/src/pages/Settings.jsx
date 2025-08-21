@@ -47,7 +47,8 @@ const Settings = () => {
 
   const timezones = useMemo(() => {
     try {
-      return Intl.supportedValuesOf("timeZone");
+      const zones = Intl.supportedValuesOf("timeZone");
+      return zones.includes('UTC') ? zones : ['UTC', ...zones];
     } catch (e) {
       return ["UTC", "America/New_York", "Europe/London", "Asia/Kolkata"];
     }
@@ -55,8 +56,21 @@ const Settings = () => {
 
   const isAdmin = user?.role === "ADMIN";
 
-  const handleSimpleChange = (updateData) => {
-    updateSettings({ ...settings, ...updateData });
+  const handleSimpleChange = async (updateData) => {
+    try {
+      await updateSettings({ ...settings, ...updateData });
+      setFeedback({
+        isOpen: true,
+        message: "Settings updated successfully!",
+        severity: "success",
+      });
+    } catch (err) {
+      setFeedback({
+        isOpen: true,
+        message: err.message || "Failed to update settings.",
+        severity: "error",
+      });
+    }
   };
 
   const handleLocalizationChange = (e) => {
@@ -97,10 +111,23 @@ const Settings = () => {
     });
   };
 
-  const handleAddUnit = () => {
+  const handleAddUnit = async () => {
     if (newUnit && settings.units && !settings.units.includes(newUnit)) {
-      handleSimpleChange({ units: [...settings.units, newUnit] });
-      setNewUnit("");
+      try {
+        await updateSettings({ ...settings, units: [...settings.units, newUnit] });
+        setNewUnit("");
+        setFeedback({
+          isOpen: true,
+          message: "Unit added successfully!",
+          severity: "success",
+        });
+      } catch (err) {
+        setFeedback({
+          isOpen: true,
+          message: err.message || "Failed to add unit.",
+          severity: "error",
+        });
+      }
     }
   };
 
@@ -108,16 +135,27 @@ const Settings = () => {
     handleSimpleChange({ units: settings.units.filter((u) => u !== unit) });
   };
 
-  const handleAddPaymentType = () => {
+  const handleAddPaymentType = async () => {
     if (
       newPaymentType &&
       settings.paymentTypes &&
       !settings.paymentTypes.includes(newPaymentType)
     ) {
-      handleSimpleChange({
-        paymentTypes: [...settings.paymentTypes, newPaymentType],
-      });
-      setNewPaymentType("");
+      try {
+        await updateSettings({ ...settings, paymentTypes: [...settings.paymentTypes, newPaymentType] });
+        setNewPaymentType("");
+        setFeedback({
+          isOpen: true,
+          message: "Payment type added successfully!",
+          severity: "success",
+        });
+      } catch (err) {
+        setFeedback({
+          isOpen: true,
+          message: err.message || "Failed to add payment type.",
+          severity: "error",
+        });
+      }
     }
   };
 
@@ -151,6 +189,9 @@ const Settings = () => {
           name="tenantDisplayName"
           value={settings.tenantDisplayName || ""}
           onChange={(e) =>
+            handleSimpleChange({ tenantDisplayName: e.target.value })
+          }
+          onBlur={(e) =>
             handleSimpleChange({ tenantDisplayName: e.target.value })
           }
           sx={{ mt: 2, minWidth: 240 }}

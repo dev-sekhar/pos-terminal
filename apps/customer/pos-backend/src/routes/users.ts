@@ -6,6 +6,8 @@ import * as usersController from '../controllers/usersController';
 import { rbacMiddleware } from '../middleware/rbacMiddleware';
 // 2. Import the PERMISSIONS object from our single source of truth.
 import { PERMISSIONS } from '@pos-terminal/permissions';
+import { validate } from '../middleware/validate';
+import { userSchema } from '@pos-terminal/schemas/dist/userSchema';
 
 const router = Router();
 
@@ -17,13 +19,13 @@ const router = Router();
 router.get('/', rbacMiddleware(PERMISSIONS.MANAGE_USERS), usersController.listUsers);
 
 // POST /api/users - Create a new user
-router.post('/', rbacMiddleware(PERMISSIONS.MANAGE_USERS), usersController.createUser);
+router.post('/', rbacMiddleware(PERMISSIONS.MANAGE_USERS), validate(userSchema), usersController.createUser);
 
 // GET /api/users/:id - Get a single user's details
 router.get('/:id', rbacMiddleware(PERMISSIONS.MANAGE_USERS), usersController.getUserById);
 
 // PUT /api/users/:id - Update a user's details (e.g., their role or branch)
-router.put('/:id', rbacMiddleware(PERMISSIONS.MANAGE_USERS), usersController.updateUser);
+router.put('/:id', rbacMiddleware(PERMISSIONS.MANAGE_USERS), validate(userSchema), usersController.updateUser);
 
 // DELETE /api/users/:id - Delete a user from the tenant
 router.delete('/:id', rbacMiddleware(PERMISSIONS.MANAGE_USERS), usersController.deleteUser);

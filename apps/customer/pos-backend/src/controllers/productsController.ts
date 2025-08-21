@@ -78,8 +78,10 @@ export const getNewProductCode = async (req: Request, res: Response, next: NextF
     try {
         const context = createServiceContext(req as AuthenticatedRequest);
         const code = await productsService.generateNewProductCode(context);
+        console.log('Generated product code:', code);
         res.json({ code });
     } catch (err) { 
+        console.error('Error generating product code:', err);
         next(err); 
     }
 };

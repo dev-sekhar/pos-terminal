@@ -79,6 +79,13 @@ app.use('/api/settings', protectedMiddleware, settingsRoutes);
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   console.error('Error:', err);
 
+  // Handle validation errors from services
+  if (err.message && (err.message.includes('already associated') || err.message.includes('is required'))) {
+    return res.status(400).json({ 
+      message: err.message 
+    });
+  }
+
   // Simplified error checking that doesn't rely on Prisma types
   if (err?.code === 'P2002') {
     return res.status(409).json({ 
