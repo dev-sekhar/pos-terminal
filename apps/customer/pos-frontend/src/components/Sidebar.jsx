@@ -95,12 +95,7 @@ const navItems = [
     icon: <BranchIcon />,
     permission: PERMISSIONS.MANAGE_BRANCHES,
   },
-  {
-    text: "Settings",
-    path: "/settings",
-    icon: <SettingsIcon />,
-    permission: PERMISSIONS.MANAGE_SETTINGS,
-  },
+
 ];
 
 const Sidebar = () => {
