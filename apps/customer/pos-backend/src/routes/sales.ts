@@ -2,6 +2,10 @@ import { Router } from 'express';
 import * as salesController from '../controllers/salesController';
 import { rbacMiddleware } from '../middleware/rbacMiddleware';
 import { PERMISSIONS } from '@pos-terminal/permissions';
+import { saleSchema } from '@pos-terminal/schemas';
+import { validate } from '../middleware/validate';
+
+// Updated schema - paymentType is now optional
 
 const router = Router();
 
@@ -10,7 +14,7 @@ const router = Router();
 // Any user who can create sales should also be able to see the list of sales (which the service layer will filter for their branch).
 const canAccessSales = rbacMiddleware(PERMISSIONS.CREATE_SALES);
 
-router.post('/', canAccessSales, salesController.createSale);
+router.post('/', canAccessSales, validate(saleSchema), salesController.createSale);
 router.get('/', canAccessSales, salesController.listSales); // Corrected permission
 router.get('/utils/new-invoice', canAccessSales, salesController.getNewInvoiceNumber);
 
@@ -19,7 +23,7 @@ router.get('/:id', rbacMiddleware(PERMISSIONS.VIEW_REPORTS), salesController.get
 
 // Deleting a sale is a powerful action, restricted to managers and admins
 const canManageSales = rbacMiddleware(PERMISSIONS.MANAGE_PRODUCTS); // Using as a proxy for manager-level access
-router.put('/:id', canManageSales, salesController.updateSale);
+router.put('/:id', canManageSales, validate(saleSchema), salesController.updateSale);
 router.delete('/:id', canManageSales, salesController.deleteSale);
 
 export default router;

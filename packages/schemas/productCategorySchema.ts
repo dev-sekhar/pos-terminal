@@ -8,10 +8,7 @@ export const productCategorySchema = Yup.object().shape({
   description: Yup.string()
     .optional(),
     
-  userName: Yup.string()
-    .required("User Name is required")
-    .min(1, "User Name must not be empty"),
-    
+
   active: Yup.boolean()
     .optional()
     .default(true)

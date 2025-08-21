@@ -30,7 +30,10 @@ export const getCategoryById = async (id: number, requestingUser: UserContextPay
 };
 
 export const updateCategory = async (id: number, data: Prisma.ProductCategoryUpdateInput, requestingUser: UserContextPayload) => {
-  await prisma.productCategory.updateMany({ where: { id, tenantId: requestingUser.tenantId }, data });
+  // Filter out userName from data since it's not a valid ProductCategory field
+  const { userName, ...validData } = data as any;
+  
+  await prisma.productCategory.updateMany({ where: { id, tenantId: requestingUser.tenantId }, data: validData });
   return getCategoryById(id, requestingUser);
 };
 

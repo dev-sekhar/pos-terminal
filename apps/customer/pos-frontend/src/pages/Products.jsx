@@ -125,23 +125,20 @@ const Products = () => {
     setCurrentProduct((p) => ({ ...p, [e.target.name]: e.target.value }));
 
   const handleSave = async () => {
-    if (
-      !currentProduct.name ||
-      !currentProduct.productCategoryId ||
-      !currentProduct.price
-    ) {
-      setFormErrors(["Name, Category, and Price are required."]);
-      return;
-    }
-    setFormErrors([]);
     const method = isEditing ? "PUT" : "POST";
     const url = isEditing
       ? `/api/products/${currentProduct.id}`
       : "/api/products";
+    
+    const productData = {
+      ...currentProduct,
+      userName: loggedInUser?.name || tenant?.name || "System",
+    };
+    
     try {
       await authenticatedFetch(url, {
         method,
-        body: JSON.stringify(currentProduct),
+        body: JSON.stringify(productData),
       });
       handleClose();
       fetchProductsAndCategories();
@@ -230,6 +227,23 @@ const Products = () => {
   
   const currency = settings?.currency || '$';
 
+  // Group products by category
+  const groupedProducts = products.reduce((acc, product) => {
+    const categoryName = product.productCategory?.name || "Uncategorized";
+    if (!acc[categoryName]) {
+      acc[categoryName] = [];
+    }
+    acc[categoryName].push(product);
+    return acc;
+  }, {});
+
+  // Sort products within each category by name
+  Object.keys(groupedProducts).forEach(categoryName => {
+    groupedProducts[categoryName].sort((a, b) => 
+      a.name.localeCompare(b.name)
+    );
+  });
+
   return (
     <Box>
       <Box
@@ -271,29 +285,38 @@ const Products = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {products.map((p) => (
-              <TableRow key={p.id}>
-                <TableCell>{p.code}</TableCell>
-                <TableCell>{p.name}</TableCell>
-                <TableCell>{p.productCategory?.name || "N/A"}</TableCell>
-                <TableCell>{p.unit}</TableCell>
-                <TableCell>
-                  {currency} {p.price.toFixed(2)}
-                </TableCell>
-                {canManage && (
-                  <TableCell>
-                    <IconButton onClick={() => handleOpen(p)}>
-                      <EditIcon />
-                    </IconButton>
-                    <IconButton
-                      onClick={() => handleDelete(p.id)}
-                      color="error"
-                    >
-                      <DeleteIcon />
-                    </IconButton>
+            {Object.keys(groupedProducts).map((categoryName) => (
+              <React.Fragment key={categoryName}>
+                <TableRow>
+                  <TableCell colSpan={canManage ? 6 : 5} sx={{ backgroundColor: '#f5f5f5', fontWeight: 'bold' }}>
+                    {categoryName}
                   </TableCell>
-                )}
-              </TableRow>
+                </TableRow>
+                {groupedProducts[categoryName].map((p) => (
+                  <TableRow key={p.id}>
+                    <TableCell>{p.code}</TableCell>
+                    <TableCell>{p.name}</TableCell>
+                    <TableCell>{p.productCategory?.name || "N/A"}</TableCell>
+                    <TableCell>{p.unit}</TableCell>
+                    <TableCell>
+                      {currency} {p.price.toFixed(2)}
+                    </TableCell>
+                    {canManage && (
+                      <TableCell>
+                        <IconButton onClick={() => handleOpen(p)}>
+                          <EditIcon />
+                        </IconButton>
+                        <IconButton
+                          onClick={() => handleDelete(p.id)}
+                          color="error"
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+              </React.Fragment>
             ))}
           </TableBody>
         </Table>

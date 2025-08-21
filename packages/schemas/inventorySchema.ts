@@ -21,9 +21,6 @@ export const inventorySchema = Yup.object().shape({
     .required("Reorder level is required")
     .min(0, "Reorder level must be positive"),
     
-  userName: Yup.string()
-    .required("User Name is required")
-    .min(1, "User Name must not be empty")
 });
 
 export type InventoryInput = Yup.InferType<typeof inventorySchema>;

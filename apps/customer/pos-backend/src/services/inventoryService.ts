@@ -69,7 +69,8 @@ export const createInventory = async (data: Prisma.InventoryUncheckedCreateInput
 };
 
 export const updateInventory = async (id: number, data: any, requestingUser: UserContextPayload): Promise<Inventory | null> => {
-  const { stock, reorderLevel } = data;
+  // Filter out userName from data since it's not a valid Inventory field
+  const { userName, stock, reorderLevel } = data;
   const { tenantId, role, branchId } = requestingUser;
   
   const whereClause: Prisma.InventoryWhereInput = { id, tenantId: tenantId };

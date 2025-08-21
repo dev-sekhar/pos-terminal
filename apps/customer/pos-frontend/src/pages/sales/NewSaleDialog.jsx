@@ -25,7 +25,7 @@ const NewSaleDialog = ({ open, onClose, onSave, user, branch, branches, inventor
             invoice,
             datetime, // Pass the full, correct timestamp
             branchId: branch.id,
-            paymentType: settings?.paymentTypes[0] || "Cash",
+            paymentType: settings?.paymentTypes[0] || "cash",
             userId: user.id,
           });
           setFormErrors([]);
@@ -82,10 +82,6 @@ const NewSaleDialog = ({ open, onClose, onSave, user, branch, branches, inventor
   const handleRemoveItem = (idx) => setForm((f) => ({ ...f, items: f.items.filter((_, i) => i !== idx) }));
 
   const handleSaveClick = async () => {
-    if (form.items.length === 0) {
-        setFormErrors(["Cannot create a sale with no items."]);
-        return;
-    }
     try {
       await onSave(form);
     } catch (err) {

@@ -2,6 +2,8 @@ import { Router } from 'express';
 import * as productsController from '../controllers/productsController';
 import { rbacMiddleware } from '../middleware/rbacMiddleware';
 import { PERMISSIONS } from '@pos-terminal/permissions';
+import { productSchema } from '@pos-terminal/schemas';
+import { validate } from '../middleware/validate';
 
 const router = Router();
 
@@ -12,8 +14,8 @@ router.get('/:id', rbacMiddleware(PERMISSIONS.VIEW_PRODUCTS), productsController
 
 // --- ONLY ADMINS CAN MANAGE (CREATE/EDIT/DELETE) ---
 const canManageProducts = rbacMiddleware(PERMISSIONS.MANAGE_PRODUCTS);
-router.post('/', canManageProducts, productsController.createProduct);
-router.put('/:id', canManageProducts, productsController.updateProduct);
+router.post('/', canManageProducts, validate(productSchema), productsController.createProduct);
+router.put('/:id', canManageProducts, validate(productSchema), productsController.updateProduct);
 router.delete('/:id', canManageProducts, productsController.deleteProduct);
 router.get('/utils/new-code', canManageProducts, productsController.getNewProductCode);
 router.post('/import', canManageProducts, productsController.importProducts);

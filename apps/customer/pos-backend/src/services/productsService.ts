@@ -56,9 +56,12 @@ export const updateProduct = async (id: number, data: Prisma.ProductUpdateInput,
     return null; // Or throw an error: throw new Error("Product not found or permission denied.");
   }
 
+  // Filter out userName from data since it's not a valid Product field
+  const { userName, ...validData } = data as any;
+  
   return prisma.product.update({ 
     where: { id }, 
-    data 
+    data: validData 
   });
 };
 

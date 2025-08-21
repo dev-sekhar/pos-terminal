@@ -60,10 +60,17 @@ const Sales = () => {
   }, [fetchData]);
 
   const handleSave = async (formData) => {
+    const calculatedTotal = calcTotal(formData.items, formData.discount);
+    const saleData = {
+      ...formData,
+      total: calculatedTotal,
+      userName: user?.name || tenant?.name || "System",
+    };
+    
     try {
       await authenticatedFetch("/api/sales", {
         method: "POST",
-        body: JSON.stringify(formData),
+        body: JSON.stringify(saleData),
       });
       setOpen(false);
       fetchData();
