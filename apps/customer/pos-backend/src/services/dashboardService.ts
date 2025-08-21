@@ -54,6 +54,8 @@ export const getDashboardMetrics = async (requestingUser: UserContextPayload) =>
 
   const [
     salesTodayData,
+    salesMTDData,
+    salesFYTDData,
     topProductsTodayData,
     topProductsMonthData,
     topProductsYearData
@@ -61,6 +63,16 @@ export const getDashboardMetrics = async (requestingUser: UserContextPayload) =>
     prisma.sale.aggregate({
       _sum: { total: true },
       where: { ...scopeWhereClause, datetime: { gte: todayStartUTC } },
+    }),
+    prisma.sale.findMany({
+      where: { ...scopeWhereClause, datetime: { gte: monthStartUTC } },
+      select: { datetime: true, total: true },
+      orderBy: { datetime: 'asc' }
+    }),
+    prisma.sale.findMany({
+      where: { ...scopeWhereClause, datetime: { gte: yearStartUTC } },
+      select: { datetime: true, total: true },
+      orderBy: { datetime: 'asc' }
     }),
     prisma.saleItem.groupBy({
       by: ['productId'],
@@ -111,10 +123,34 @@ export const getDashboardMetrics = async (requestingUser: UserContextPayload) =>
       }).sort((a, b) => b.value - a.value);
   }
 
+  // Process MTD data - group by day
+  const mtdData = salesMTDData.reduce((acc: any[], sale) => {
+    const date = sale.datetime.toISOString().split('T')[0];
+    const existing = acc.find(item => item.date === date);
+    if (existing) {
+      existing.sales += Number(sale.total);
+    } else {
+      acc.push({ date, sales: Number(sale.total) });
+    }
+    return acc;
+  }, []);
+
+  // Process FYTD data - group by month
+  const fytdData = salesFYTDData.reduce((acc: any[], sale) => {
+    const month = sale.datetime.toISOString().substring(0, 7);
+    const existing = acc.find(item => item.month === month);
+    if (existing) {
+      existing.sales += Number(sale.total);
+    } else {
+      acc.push({ month, sales: Number(sale.total) });
+    }
+    return acc;
+  }, []);
+
   return {
     totalToday: salesTodayData._sum.total || 0,
-    mtdData: [],
-    fytdData: [],
+    mtdData,
+    fytdData,
     topToday: mapResults(topProductsTodayData),
     topMonth: mapResults(topProductsMonthData),
     topYear: mapResults(topProductsYearData),

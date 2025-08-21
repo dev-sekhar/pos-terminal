@@ -26,8 +26,8 @@ const Header = () => {
       sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}
     >
       <Toolbar>
-        <Typography variant="h6" sx={{ flexGrow: 1 }}>
-          POS Terminal
+        <Typography variant="h6">
+          {import.meta.env.VITE_APP_NAME || "POS Terminal"}
         </Typography>
         <Box
           sx={{
