@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { AnySchema, ValidationError } from 'yup';
+import { AnySchema, ValidationError, ObjectSchema } from 'yup';
 
 /**
  * Creates a middleware that validates the request body against a provided Yup schema.
@@ -25,10 +25,18 @@ export const validate = (schema: AnySchema) => async (req: Request, res: Respons
     // If validation fails, it will be a Yup ValidationError.
     if (error instanceof ValidationError) {
       console.error("Validation Error:", error.errors);
+      // Get field order from schema
+      const fieldOrder = Object.keys((schema as ObjectSchema<any>).fields || {});
+      // Sort errors by field order in schema
+      const sortedErrors = error.inner.sort((a, b) => {
+        const aIndex = fieldOrder.indexOf(a.path || '');
+        const bIndex = fieldOrder.indexOf(b.path || '');
+        return aIndex - bIndex;
+      });
       // Return a 400 Bad Request with a structured error message.
       return res.status(400).json({
         message: 'Validation failed',
-        errors: error.inner.map(err => ({
+        errors: sortedErrors.map(err => ({
           path: err.path,
           message: err.message,
         })),

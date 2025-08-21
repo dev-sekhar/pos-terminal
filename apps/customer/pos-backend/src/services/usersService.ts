@@ -43,6 +43,7 @@ export const getUserById = async (id: number, requestingUser: UserContextPayload
 
 // Create a new user, respecting branch scope for Managers
 export const createUser = async (data: any, requestingUser: UserContextPayload): Promise<User> => {
+  // Filter out userName and other invalid fields
   const { name, email, password, role, branchId } = data;
   const { tenantId, role: requesterRole, branchId: requesterBranchId, id: creatorId } = requestingUser;
 
@@ -76,6 +77,7 @@ export const createUser = async (data: any, requestingUser: UserContextPayload):
 
 // Update a user, respecting branch scope for Managers
 export const updateUser = async (id: number, data: any, requestingUser: UserContextPayload): Promise<User | null> => {
+    // Filter out userName and other invalid fields
     const { name, email, password, role, branchId } = data;
     const { tenantId, role: requesterRole, branchId: requesterBranchId } = requestingUser;
     

@@ -1,14 +1,14 @@
 import * as Yup from 'yup';
 export declare const userSchema: Yup.ObjectSchema<{
+    name: string;
     email: string;
     password: string;
-    name: string;
     role: string;
     branchId: number;
 }, Yup.AnyObject, {
+    name: undefined;
     email: undefined;
     password: undefined;
-    name: undefined;
     role: undefined;
     branchId: undefined;
 }, "">;

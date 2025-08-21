@@ -106,20 +106,14 @@ const Users = () => {
     setCurrentUser((u) => ({ ...u, [e.target.name]: e.target.value }));
 
   const handleSave = async () => {
-    const payload = { ...currentUser };
+    const payload = {
+      ...currentUser,
+      userName: loggedInUser?.name || tenant?.name || "System"
+    };
     if (isEditing && !payload.password) {
       delete payload.password;
     }
-    if (!isEditing && !payload.password) {
-      setFormErrors(["Password is required for new users."]);
-      return;
-    }
-    if (!payload.branchId) {
-      setFormErrors(["Branch is a required field."]);
-      return;
-    }
 
-    setFormErrors([]);
     const method = isEditing ? "PUT" : "POST";
     const url = isEditing ? `/api/users/${currentUser.id}` : "/api/users";
 
@@ -205,7 +199,7 @@ const Users = () => {
           )}
           <TextField
             margin="dense"
-            label="Name"
+            label="Name *"
             name="name"
             value={currentUser.name}
             onChange={handleChange}
@@ -214,7 +208,7 @@ const Users = () => {
           />
           <TextField
             margin="dense"
-            label="Email"
+            label="Email *"
             name="email"
             value={currentUser.email}
             onChange={handleChange}
@@ -222,7 +216,7 @@ const Users = () => {
           />
           <TextField
             margin="dense"
-            label="Password"
+            label={isEditing ? "Password" : "Password *"}
             name="password"
             type="password"
             value={currentUser.password}
@@ -231,9 +225,9 @@ const Users = () => {
             fullWidth
           />
           <FormControl margin="dense" fullWidth>
-            <InputLabel>Role</InputLabel>
+            <InputLabel>Role *</InputLabel>
             <Select
-              label="Role"
+              label="Role *"
               name="role"
               value={currentUser.role}
               onChange={handleChange}
@@ -252,9 +246,9 @@ const Users = () => {
           {/* A Manager can only create users in their own branch, so the field is hidden and pre-filled. */}
           {loggedInUser.role === "ADMIN" && (
             <FormControl margin="dense" fullWidth>
-              <InputLabel>Branch</InputLabel>
+              <InputLabel>Branch *</InputLabel>
               <Select
-                label="Branch"
+                label="Branch *"
                 name="branchId"
                 value={currentUser.branchId || ""}
                 onChange={handleChange}
