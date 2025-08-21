@@ -1,0 +1,19 @@
+import { Role as PrismaRole } from '@prisma/client';
+export type Role = PrismaRole;
+export declare const PERMISSIONS: {
+    readonly VIEW_PRODUCTS: "view:products";
+    readonly VIEW_CATEGORIES: "view:categories";
+    readonly VIEW_PURCHASES: "view:purchases";
+    readonly MANAGE_USERS: "manage:users";
+    readonly MANAGE_SETTINGS: "manage:settings";
+    readonly MANAGE_BRANCHES: "manage:branches";
+    readonly MANAGE_PRODUCTS: "manage:products";
+    readonly MANAGE_CATEGORIES: "manage:categories";
+    readonly MANAGE_SUPPLIERS: "manage:suppliers";
+    readonly MANAGE_INVENTORY: "manage:inventory";
+    readonly MANAGE_PURCHASES: "manage:purchases";
+    readonly CREATE_SALES: "create:sales";
+    readonly VIEW_REPORTS: "view:reports";
+    readonly VIEW_DASHBOARD: "view:dashboard";
+};
+export declare const getUserPermissions: (role?: Role) => string[];

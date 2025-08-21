@@ -24,9 +24,10 @@ import {
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { useTenant } from "../context/TenantContext";
-
-// --- FIX 1: Import our new centralized API utility ---
 import { authenticatedFetch } from "../utils/api";
+// --- THIS IS THE FIX (Part 1) ---
+// Import the shared schema from the new package.
+import { branchSchema } from "@pos-terminal/schemas";
 
 const initialFormState = { name: "", tag: "", active: true };
 
@@ -35,19 +36,17 @@ const Branches = () => {
   const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
   const [open, setOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [currentBranch, setCurrentBranch] = useState(initialFormState);
+  
+  // State to hold structured validation errors: { name: 'Error message', tag: '...' }
+  const [formErrors, setFormErrors] = useState({});
 
-  const [formErrors, setFormErrors] = useState([]);
-
-  // Fetch branches from the API using our new utility
   const fetchBranches = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      // --- FIX 2: Use authenticatedFetch. No more manual headers! ---
       const data = await authenticatedFetch("/api/branches");
       setBranches(data);
     } catch (err) {
@@ -65,17 +64,8 @@ const Branches = () => {
 
   const handleOpen = (branch = null) => {
     setIsEditing(!!branch);
-    setCurrentBranch(
-      branch
-        ? {
-            id: branch.id,
-            name: branch.name,
-            tag: branch.tag,
-            active: branch.active,
-          }
-        : initialFormState
-    );
-    setFormErrors([]);
+    setCurrentBranch(branch ? { id: branch.id, name: branch.name, tag: branch.tag, active: branch.active } : initialFormState);
+    setFormErrors({}); // Clear errors when opening the dialog
     setOpen(true);
   };
 
@@ -83,66 +73,70 @@ const Branches = () => {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setCurrentBranch((b) => ({
-      ...b,
-      [name]: type === "checkbox" ? checked : value,
-    }));
+    setCurrentBranch((b) => ({ ...b, [name]: type === "checkbox" ? checked : value }));
+    // Clear the error for the field being edited for a better UX
+    if (formErrors[name]) {
+      setFormErrors(prev => ({ ...prev, [name]: undefined }));
+    }
+  };
+
+  // --- THIS IS THE FIX (Part 2): Client-side validation function ---
+  const validateForm = async () => {
+    try {
+      setFormErrors({});
+      await branchSchema.validate(currentBranch, { abortEarly: false });
+      return true; // Validation passed
+    } catch (err) {
+      // Yup validation failed, transform errors into a state object
+      const errors = {};
+      if (err.inner) {
+        err.inner.forEach(error => {
+          errors[error.path] = error.message;
+        });
+      }
+      setFormErrors(errors);
+      return false; // Validation failed
+    }
   };
 
   const handleSave = async () => {
-    if (!currentBranch.name || !currentBranch.tag) {
-      setFormErrors(["Branch Name and Tag are required."]);
-      return;
-    }
-    setFormErrors([]);
+    const isValid = await validateForm();
+    if (!isValid) return;
 
     const method = isEditing ? "PUT" : "POST";
-    const url = isEditing
-      ? `/api/branches/${currentBranch.id}`
-      : "/api/branches";
+    const url = isEditing ? `/api/branches/${currentBranch.id}` : "/api/branches";
 
     try {
-      // --- FIX 3: Use authenticatedFetch for saving data ---
       await authenticatedFetch(url, {
         method,
         body: JSON.stringify(currentBranch),
       });
       handleClose();
-      fetchBranches(); // Re-fetch data to show changes
+      fetchBranches();
     } catch (err) {
-      setFormErrors([err.message]);
+      // Handle server-side errors (e.g., duplicate tag from the database)
+      setError(err.message);
     }
   };
 
   const handleDelete = async (id) => {
     if (!window.confirm("Are you sure you want to delete this branch?")) return;
-
     try {
-      // --- FIX 4: Use authenticatedFetch for deleting data ---
-      await authenticatedFetch(`/api/branches/${id}`, {
-        method: "DELETE",
-      });
-      fetchBranches(); // Re-fetch data
+      await authenticatedFetch(`/api/branches/${id}`, { method: "DELETE" });
+      fetchBranches();
     } catch (err) {
       setError(err.message);
     }
   };
 
   if (loading) return <CircularProgress />;
-  if (error) return <Alert severity="error">{error}</Alert>;
+  if (error && !open) return <Alert severity="error">{error}</Alert>; // Only show page-level error when dialog is closed
 
   return (
     <Box>
-      <Box
-        display="flex"
-        justifyContent="space-between"
-        alignItems="center"
-        mb={2}
-      >
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
         <Typography variant="h4">Branches</Typography>
-        <Button variant="contained" onClick={() => handleOpen()}>
-          Add Branch
-        </Button>
+        <Button variant="contained" onClick={() => handleOpen()}>Add Branch</Button>
       </Box>
       <Paper>
         <Table>
@@ -159,24 +153,10 @@ const Branches = () => {
               <TableRow key={b.id}>
                 <TableCell>{b.name}</TableCell>
                 <TableCell>{b.tag}</TableCell>
+                <TableCell>{b.active ? <Chip label="Active" color="success" /> : <Chip label="Inactive" color="default" />}</TableCell>
                 <TableCell>
-                  {b.active ? (
-                    <Chip label="Active" color="success" />
-                  ) : (
-                    <Chip label="Inactive" color="default" />
-                  )}
-                </TableCell>
-                <TableCell>
-                  <IconButton onClick={() => handleOpen(b)}>
-                    <EditIcon />
-                  </IconButton>
-                  <IconButton
-                    onClick={() => handleDelete(b.id)}
-                    color="error"
-                    disabled={b.tag === "Main"}
-                  >
-                    <DeleteIcon />
-                  </IconButton>
+                  <IconButton onClick={() => handleOpen(b)}><EditIcon /></IconButton>
+                  <IconButton onClick={() => handleDelete(b.id)} color="error" disabled={b.tag === "Main"}><DeleteIcon /></IconButton>
                 </TableCell>
               </TableRow>
             ))}
@@ -187,11 +167,7 @@ const Branches = () => {
       <Dialog open={open} onClose={handleClose}>
         <DialogTitle>{isEditing ? "Edit Branch" : "Add Branch"}</DialogTitle>
         <DialogContent>
-          {formErrors.length > 0 && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {formErrors.join(", ")}
-            </Alert>
-          )}
+          {error && open && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
           <TextField
             margin="dense"
             label="Branch Name"
@@ -200,6 +176,9 @@ const Branches = () => {
             onChange={handleChange}
             fullWidth
             autoFocus
+            // --- THIS IS THE FIX (Part 3): Display validation errors ---
+            error={!!formErrors.name}
+            helperText={formErrors.name || ' '}
           />
           <TextField
             margin="dense"
@@ -209,24 +188,18 @@ const Branches = () => {
             onChange={handleChange}
             fullWidth
             disabled={currentBranch.tag === "Main"}
+            // --- THIS IS THE FIX (Part 3): Display validation errors ---
+            error={!!formErrors.tag}
+            helperText={formErrors.tag || ' '}
           />
           <FormControlLabel
-            control={
-              <Switch
-                checked={currentBranch.active}
-                onChange={handleChange}
-                name="active"
-                disabled={currentBranch.tag === "Main"}
-              />
-            }
+            control={<Switch checked={currentBranch.active} onChange={handleChange} name="active" disabled={currentBranch.tag === "Main"} />}
             label="Active"
           />
         </DialogContent>
         <DialogActions>
           <Button onClick={handleClose}>Cancel</Button>
-          <Button onClick={handleSave} variant="contained">
-            {isEditing ? "Save" : "Add"}
-          </Button>
+          <Button onClick={handleSave} variant="contained">{isEditing ? "Save" : "Add"}</Button>
         </DialogActions>
       </Dialog>
     </Box>

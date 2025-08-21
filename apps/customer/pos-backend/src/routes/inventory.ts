@@ -2,6 +2,8 @@ import { Router } from 'express';
 import * as inventoryController from '../controllers/inventoryController';
 import { rbacMiddleware } from '../middleware/rbacMiddleware';
 import { PERMISSIONS } from '@pos-terminal/permissions';
+import { inventorySchema } from '@pos-terminal/schemas';
+import { validate } from '../middleware/validate';
 
 const router = Router();
 
@@ -13,12 +15,12 @@ router.get('/for-sales', rbacMiddleware(PERMISSIONS.CREATE_SALES), inventoryCont
 router.get('/', rbacMiddleware(PERMISSIONS.CREATE_SALES), inventoryController.listInventory);
 
 const canManageInventory = rbacMiddleware(PERMISSIONS.MANAGE_INVENTORY);
-router.post('/', canManageInventory, inventoryController.createInventory);
+router.post('/', canManageInventory, validate(inventorySchema), inventoryController.createInventory);
 
 // This route will now only be matched if the path is not '/for-sales'.
 router.get('/:id', canManageInventory, inventoryController.getInventoryById);
 
-router.put('/:id', canManageInventory, inventoryController.updateInventory);
+router.put('/:id', canManageInventory, validate(inventorySchema), inventoryController.updateInventory);
 router.delete('/:id', canManageInventory, inventoryController.deleteInventory);
 
 export default router;

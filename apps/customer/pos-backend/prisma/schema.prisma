@@ -2,6 +2,7 @@
 
 generator client {
   provider = "prisma-client-js"
+  output   = "../../../../node_modules/.prisma/client"
 }
 
 datasource db {
@@ -31,7 +32,6 @@ model Tenant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // --- Bidirectional Relationships ---
   users         User[]
   branches      Branch[]
   products      Product[]
@@ -42,7 +42,6 @@ model Tenant {
   inventories   Inventory[]
   saleItems     SaleItem[]
   purchaseItems PurchaseItem[]
-  // --- THIS IS THE FIX (Part 1) ---
   auditLogs     AuditLog[]
 }
 
@@ -72,20 +71,18 @@ model User {
   createdSales             Sale[]            @relation("CreatedSales")
   createdSuppliers         Supplier[]        @relation("CreatedSuppliers")
   createdPurchases         Purchase[]        @relation("CreatedPurchases")
-  // --- THIS IS THE FIX (Part 2) ---
   auditLogs                AuditLog[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
 }
 
-// --- THIS IS THE NEW MODEL ---
 model AuditLog {
   id        Int      @id @default(autoincrement())
   tenantId  String
   userId    Int
-  action    String // e.g., "TENANT_SETTINGS_UPDATED"
-  details   Json // { oldValue, newValue, changedBy }
+  action    String
+  details   Json
   createdAt DateTime @default(now())
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -95,7 +92,6 @@ model AuditLog {
   @@index([userId])
 }
 
-// --- All other models are correct as they were ---
 model Branch {
   id        Int      @id @default(autoincrement())
   name      String
@@ -106,13 +102,11 @@ model Branch {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Relations
   tenantId    String
   tenant      Tenant @relation(fields: [tenantId], references: [id])
   createdById Int?
   createdBy   User?  @relation("CreatedBranches", fields: [createdById], references: [id])
 
-  // Relational Fields
   users     User[]      @relation("UserBranch")
   inventory Inventory[]
   sales     Sale[]
@@ -132,13 +126,11 @@ model ProductCategory {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  // Relations
   tenantId    String
   tenant      Tenant @relation(fields: [tenantId], references: [id])
   createdById Int
   createdBy   User   @relation("CreatedProductCategories", fields: [createdById], references: [id])
 
-  // Relational Fields
   products Product[]
 
   @@unique([tenantId, name])
@@ -146,28 +138,24 @@ model ProductCategory {
 }
 
 model Product {
-  id        Int      @id @default(autoincrement())
-  name      String
-  code      String
-  unit      String
-  price     Float
-  active    Boolean  @default(true)
-  deleted   Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
+  id                Int             @id @default(autoincrement())
+  name              String
+  code              String
+  unit              String
+  price             Float
+  active            Boolean         @default(true)
+  deleted           Boolean         @default(false)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
   tenantId          String
   tenant            Tenant          @relation(fields: [tenantId], references: [id])
   productCategoryId Int
   productCategory   ProductCategory @relation(fields: [productCategoryId], references: [id])
   createdById       Int
   createdBy         User            @relation("CreatedProducts", fields: [createdById], references: [id])
-
-  // Relational Fields
-  inventory     Inventory[]
-  saleItems     SaleItem[]
-  purchaseItems PurchaseItem[]
+  inventory         Inventory[]
+  saleItems         SaleItem[]
+  purchaseItems     PurchaseItem[]
 
   @@unique([tenantId, code])
   @@unique([tenantId, name])
@@ -181,57 +169,49 @@ model Inventory {
   deleted      Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
-
-  // Relations
-  tenantId    String
-  tenant      Tenant  @relation(fields: [tenantId], references: [id])
-  productId   Int
-  product     Product @relation(fields: [productId], references: [id])
-  branchId    Int
-  branch      Branch  @relation(fields: [branchId], references: [id])
-  createdById Int
-  createdBy   User    @relation("CreatedInventories", fields: [createdById], references: [id])
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  productId    Int
+  product      Product  @relation(fields: [productId], references: [id])
+  branchId     Int
+  branch       Branch   @relation(fields: [branchId], references: [id])
+  createdById  Int
+  createdBy    User     @relation("CreatedInventories", fields: [createdById], references: [id])
 
   @@unique([tenantId, productId, branchId])
   @@index([tenantId])
 }
 
 model Sale {
-  id          Int      @id @default(autoincrement())
-  invoice     String   @unique
+  id          Int        @id @default(autoincrement())
+  invoice     String     @unique
   total       Float
-  discount    Float?   @default(0)
+  discount    Float?     @default(0)
   paymentType String
   datetime    DateTime
-  status      String   @default("completed")
-  deleted     Boolean  @default(false)
-  createdAt   DateTime @default(now())
-
-  // Relations
+  status      String     @default("completed")
+  deleted     Boolean    @default(false)
+  createdAt   DateTime   @default(now())
   tenantId    String
-  tenant      Tenant @relation(fields: [tenantId], references: [id])
+  tenant      Tenant     @relation(fields: [tenantId], references: [id])
   userId      Int
-  user        User   @relation("Salesperson", fields: [userId], references: [id])
+  user        User       @relation("Salesperson", fields: [userId], references: [id])
   branchId    Int
-  branch      Branch @relation(fields: [branchId], references: [id])
+  branch      Branch     @relation(fields: [branchId], references: [id])
   createdById Int
-  createdBy   User   @relation("CreatedSales", fields: [createdById], references: [id])
-
-  // Relational Fields
-  items SaleItem[]
+  createdBy   User       @relation("CreatedSales", fields: [createdById], references: [id])
+  items       SaleItem[]
 
   @@index([tenantId])
   @@index([datetime])
 }
 
 model SaleItem {
-  id       Int    @id @default(autoincrement())
-  quantity Int
-  price    Float
-  discount Float? @default(0)
-  tax      Float? @default(0)
-
-  // Relations
+  id        Int     @id @default(autoincrement())
+  quantity  Int
+  price     Float
+  discount  Float?  @default(0)
+  tax       Float?  @default(0)
   tenantId  String
   tenant    Tenant  @relation(fields: [tenantId], references: [id])
   saleId    Int
@@ -244,30 +224,24 @@ model SaleItem {
 }
 
 model Supplier {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique
-  contact   String?
-  email     String?  @unique
-  address   String?
-  active    Boolean  @default(true)
-  deleted   Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
+  id          Int                  @id @default(autoincrement())
+  name        String               @unique
+  contact     String?
+  email       String?              @unique
+  address     String?
+  active      Boolean              @default(true)
+  deleted     Boolean              @default(false)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
   createdById Int?
-  createdBy   User? @relation("CreatedSuppliers", fields: [createdById], references: [id])
-
-  // Relational Fields
-  tenants   TenantsOnSuppliers[]
-  purchases Purchase[]
+  createdBy   User?                @relation("CreatedSuppliers", fields: [createdById], references: [id])
+  tenants     TenantsOnSuppliers[]
+  purchases   Purchase[]
 }
 
 model TenantsOnSuppliers {
   assignedAt DateTime @default(now())
   assignedBy String
-
-  // Relations
   tenantId   String
   tenant     Tenant   @relation(fields: [tenantId], references: [id])
   supplierId Int
@@ -277,37 +251,31 @@ model TenantsOnSuppliers {
 }
 
 model Purchase {
-  id        Int      @id @default(autoincrement())
-  poNumber  String   @unique
-  datetime  DateTime
-  total     Float    @default(0)
-  status    String   @default("completed")
-  deleted   Boolean  @default(false)
-  createdAt DateTime @default(now())
-
-  // Relations
+  id          Int            @id @default(autoincrement())
+  poNumber    String         @unique
+  datetime    DateTime
+  total       Float          @default(0)
+  status      String         @default("completed")
+  deleted     Boolean        @default(false)
+  createdAt   DateTime       @default(now())
   tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  tenant      Tenant         @relation(fields: [tenantId], references: [id])
   supplierId  Int
-  supplier    Supplier @relation(fields: [supplierId], references: [id])
+  supplier    Supplier       @relation(fields: [supplierId], references: [id])
   branchId    Int
-  branch      Branch   @relation(fields: [branchId], references: [id])
+  branch      Branch         @relation(fields: [branchId], references: [id])
   createdById Int
-  createdBy   User     @relation("CreatedPurchases", fields: [createdById], references: [id])
-
-  // Relational Fields
-  items PurchaseItem[]
+  createdBy   User           @relation("CreatedPurchases", fields: [createdById], references: [id])
+  items       PurchaseItem[]
 
   @@index([tenantId])
   @@index([datetime])
 }
 
 model PurchaseItem {
-  id       Int    @id @default(autoincrement())
-  quantity Int
-  price    Float? @default(0)
-
-  // Relations
+  id         Int      @id @default(autoincrement())
+  quantity   Int
+  price      Float?   @default(0)
   tenantId   String
   tenant     Tenant   @relation(fields: [tenantId], references: [id])
   purchaseId Int

@@ -1,0 +1,45 @@
+export const PERMISSIONS = {
+    VIEW_PRODUCTS: 'view:products',
+    VIEW_CATEGORIES: 'view:categories',
+    VIEW_PURCHASES: 'view:purchases',
+    MANAGE_USERS: 'manage:users',
+    MANAGE_SETTINGS: 'manage:settings',
+    MANAGE_BRANCHES: 'manage:branches',
+    MANAGE_PRODUCTS: 'manage:products',
+    MANAGE_CATEGORIES: 'manage:categories',
+    MANAGE_SUPPLIERS: 'manage:suppliers',
+    MANAGE_INVENTORY: 'manage:inventory',
+    MANAGE_PURCHASES: 'manage:purchases',
+    CREATE_SALES: 'create:sales',
+    VIEW_REPORTS: 'view:reports',
+    VIEW_DASHBOARD: 'view:dashboard',
+};
+const rolePermissions = {
+    ADMIN: [
+        PERMISSIONS.VIEW_PRODUCTS, PERMISSIONS.MANAGE_PRODUCTS,
+        PERMISSIONS.VIEW_CATEGORIES, PERMISSIONS.MANAGE_CATEGORIES,
+        PERMISSIONS.VIEW_PURCHASES, PERMISSIONS.MANAGE_PURCHASES,
+        PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_SETTINGS, PERMISSIONS.MANAGE_BRANCHES,
+        PERMISSIONS.MANAGE_SUPPLIERS, PERMISSIONS.MANAGE_INVENTORY, PERMISSIONS.CREATE_SALES,
+        PERMISSIONS.VIEW_REPORTS, PERMISSIONS.VIEW_DASHBOARD,
+    ],
+    MANAGER: [
+        PERMISSIONS.VIEW_PRODUCTS,
+        PERMISSIONS.VIEW_CATEGORIES,
+        PERMISSIONS.MANAGE_INVENTORY,
+        PERMISSIONS.VIEW_PURCHASES,
+        PERMISSIONS.CREATE_SALES,
+        PERMISSIONS.VIEW_REPORTS,
+        PERMISSIONS.VIEW_DASHBOARD,
+        PERMISSIONS.MANAGE_USERS, // <-- THIS IS THE NEW PERMISSION
+    ],
+    CASHIER: [
+        PERMISSIONS.CREATE_SALES,
+        PERMISSIONS.VIEW_DASHBOARD,
+    ],
+};
+export const getUserPermissions = (role) => {
+    if (!role)
+        return [];
+    return rolePermissions[role] || [];
+};

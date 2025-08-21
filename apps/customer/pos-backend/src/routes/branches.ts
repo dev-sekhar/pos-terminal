@@ -1,29 +1,42 @@
 import { Router } from 'express';
 import * as branchesController from '../controllers/branchesController';
-
-// 1. Import our new permission-based middleware.
 import { rbacMiddleware } from '../middleware/rbacMiddleware';
-// 2. Import the PERMISSIONS object from our single source of truth.
 import { PERMISSIONS } from '@pos-terminal/permissions';
+import { validate } from '../middleware/validate';
+import { branchSchema } from '@pos-terminal/schemas';
 
 const router = Router();
 
-// All branch management actions are now protected by the 'manage:branches' permission.
-// According to our central permissions config, only ADMINs have this permission.
-
+// --- Public / Low-privilege routes ---
+// Any authenticated user can get their own branch info. No RBAC needed beyond auth.
 router.get('/my-branch', branchesController.getMyBranch);
 
-router.get('/', rbacMiddleware(PERMISSIONS.MANAGE_BRANCHES), branchesController.listBranches);
+// --- Manager & Admin routes ---
+// Any user who can manage inventory (Manager or Admin) can get the list of all branches.
+// This is now the single, definitive route for GET /.
+router.get('/', rbacMiddleware(PERMISSIONS.MANAGE_INVENTORY), branchesController.listBranches);
 
-router.post('/', rbacMiddleware(PERMISSIONS.MANAGE_BRANCHES), branchesController.createBranch);
-
+// --- Admin-only routes for branch management ---
+// Only Admins can view a specific branch by ID.
 router.get('/:id', rbacMiddleware(PERMISSIONS.MANAGE_BRANCHES), branchesController.getBranchById);
 
-router.put('/:id', rbacMiddleware(PERMISSIONS.MANAGE_BRANCHES), branchesController.updateBranch);
+// Only Admins can create a new branch, and the request body MUST be validated.
+router.post(
+  '/', 
+  rbacMiddleware(PERMISSIONS.MANAGE_BRANCHES), 
+  validate(branchSchema), 
+  branchesController.createBranch
+);
 
+// Only Admins can update a branch, and the request body MUST be validated.
+router.put(
+  '/:id', 
+  rbacMiddleware(PERMISSIONS.MANAGE_BRANCHES), 
+  validate(branchSchema), 
+  branchesController.updateBranch
+);
+
+// Only Admins can delete a branch.
 router.delete('/:id', rbacMiddleware(PERMISSIONS.MANAGE_BRANCHES), branchesController.deleteBranch);
-
-// Any user who can manage inventory should be able to see the list of branches.
-router.get('/', rbacMiddleware(PERMISSIONS.MANAGE_INVENTORY), branchesController.listBranches);
 
 export default router;

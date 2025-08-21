@@ -4,6 +4,7 @@ import * as jwt from 'jsonwebtoken';
 import { getUserPermissions } from '@pos-terminal/permissions';
 import prisma from '../lib/prisma'; // FIX 1: Use the shared prisma client
 import { AuthenticatedRequest } from '../types/express'; // FIX 2: Import the AuthenticatedRequest type
+import { ClientLoginResponse } from '../types/auth';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
@@ -21,8 +22,8 @@ export const login = async (req: Request, res: Response) => {
     }
     
     // In our schema, the User's tenantId is a string, matching the Tenant's ID type.
-    const user = await prisma.user.findUnique({ 
-      where: { tenantId_email: { tenantId: tenant.id, email } } 
+    const user = await prisma.user.findFirst({ 
+      where: { tenantId: tenant.id, email } 
     });
 
     if (!user || !(await bcrypt.compare(password, user.password))) {
@@ -45,11 +46,11 @@ export const login = async (req: Request, res: Response) => {
 
     const { password: _, ...userResponse } = user;
 
-    res.json({ 
+    res.json({
       token,
       user: userResponse,
       tenant,
-    });
+    } as ClientLoginResponse);
 
   } catch (error) {
     console.error('[AUTH ERROR] An unexpected error occurred during login:', error);

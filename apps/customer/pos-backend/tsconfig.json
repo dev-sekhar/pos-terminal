@@ -1,17 +1,12 @@
 {
   "extends": "../../../tsconfig.base.json",
   "compilerOptions": {
-    /* Backend-Specific Overrides */
     "module": "CommonJS",
     "moduleResolution": "Node",
     "outDir": "dist",
     "rootDir": "src",
     "typeRoots": ["./src/types", "./node_modules/@types"],
-        "baseUrl": "./", // This is required for paths to work
-    "paths": {
-      "@pos-terminal/permissions": ["../../packages/permissions"],
-      "@pos-terminal/permissions/*": ["../../packages/permissions/*"]
-    }
+    "baseUrl": "./"
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules"],

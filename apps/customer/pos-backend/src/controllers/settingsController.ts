@@ -1,30 +1,32 @@
 import { Request, Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from '../types/express';
 import * as settingsService from '../services/settingsService';
-// We no longer need prisma in the controller.
+import prisma from '../lib/prisma'; // Import prisma to fetch the full user
 
 /**
- * Creates the UserContextPayload object that the service layer expects.
- * It combines the user info from the JWT (via authMiddleware) with the
- * tenant's DATABASE ID (via tenantMiddleware).
+ * Helper function to fetch the full user object from the database,
+ * which is what the updated settingsService now requires for auditing.
  * @param req The authenticated request object.
- * @returns The context payload for the service layer.
+ * @returns The full User object from the database.
  */
-const createServiceContext = (req: AuthenticatedRequest) => {
-  return {
-    ...req.user,
-    // This is the critical fix: use the tenant's database ID, not the subdomain.
-    tenantId: req.tenant.id,
-  };
-};
+async function getFullUser(req: AuthenticatedRequest) {
+    const user = await prisma.user.findUnique({
+        where: { id: req.user.id }
+    });
+
+    if (!user) {
+        throw new Error("Authenticated user not found in database.");
+    }
+    return user;
+}
 
 
 // --- Controller Functions ---
 
 export const getSettings = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const context = createServiceContext(req as AuthenticatedRequest);
-    const settings = await settingsService.getSettings(context);
+    const requestingUser = await getFullUser(req as AuthenticatedRequest);
+    const settings = await settingsService.getSettings(requestingUser);
     res.json(settings);
   } catch (err) { 
     next(err); 
@@ -33,8 +35,8 @@ export const getSettings = async (req: Request, res: Response, next: NextFunctio
 
 export const updateSettings = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const context = createServiceContext(req as AuthenticatedRequest);
-    const updatedSettings = await settingsService.updateSettings(context, req.body);
+    const requestingUser = await getFullUser(req as AuthenticatedRequest);
+    const updatedSettings = await settingsService.updateSettings(requestingUser, req.body);
     res.json(updatedSettings);
   } catch (err) { 
     next(err); 

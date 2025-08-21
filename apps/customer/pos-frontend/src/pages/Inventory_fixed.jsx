@@ -166,23 +166,6 @@ const Inventory = () => {
     (item) => item.stock < item.reorderLevel
   );
 
-  // Group inventory by branch and sort by creation date within each branch
-  const groupedInventory = inventory.reduce((acc, item) => {
-    const branchName = item.branch?.name || "Unknown Branch";
-    if (!acc[branchName]) {
-      acc[branchName] = [];
-    }
-    acc[branchName].push(item);
-    return acc;
-  }, {});
-
-  // Sort items within each branch by creation date (newest first)
-  Object.keys(groupedInventory).forEach(branchName => {
-    groupedInventory[branchName].sort((a, b) => 
-      new Date(b.createdAt) - new Date(a.createdAt)
-    );
-  });
-
   return (
     <Box>
       <Box
@@ -231,40 +214,31 @@ const Inventory = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {Object.keys(groupedInventory).map((branchName) => (
-              <React.Fragment key={branchName}>
-                <TableRow>
-                  <TableCell colSpan={6} sx={{ backgroundColor: '#f5f5f5', fontWeight: 'bold' }}>
-                    {branchName}
-                  </TableCell>
-                </TableRow>
-                {groupedInventory[branchName].map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell>{item.product?.name || "N/A"}</TableCell>
-                    <TableCell>{item.branch?.name || "N/A"}</TableCell>
-                    <TableCell>{item.stock}</TableCell>
-                    <TableCell>{item.reorderLevel}</TableCell>
-                    <TableCell>
-                      {item.stock < item.reorderLevel ? (
-                        <Chip label="Low" color="error" />
-                      ) : (
-                        <Chip label="OK" color="success" />
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <IconButton onClick={() => handleOpen(item)}>
-                        <EditIcon />
-                      </IconButton>
-                      <IconButton
-                        onClick={() => handleDelete(item.id)}
-                        color="error"
-                      >
-                        <DeleteIcon />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </React.Fragment>
+            {inventory.map((item) => (
+              <TableRow key={item.id}>
+                <TableCell>{item.product?.name || "N/A"}</TableCell>
+                <TableCell>{item.branch?.name || "N/A"}</TableCell>
+                <TableCell>{item.stock}</TableCell>
+                <TableCell>{item.reorderLevel}</TableCell>
+                <TableCell>
+                  {item.stock < item.reorderLevel ? (
+                    <Chip label="Low" color="error" />
+                  ) : (
+                    <Chip label="OK" color="success" />
+                  )}
+                </TableCell>
+                <TableCell>
+                  <IconButton onClick={() => handleOpen(item)}>
+                    <EditIcon />
+                  </IconButton>
+                  <IconButton
+                    onClick={() => handleDelete(item.id)}
+                    color="error"
+                  >
+                    <DeleteIcon />
+                  </IconButton>
+                </TableCell>
+              </TableRow>
             ))}
           </TableBody>
         </Table>
