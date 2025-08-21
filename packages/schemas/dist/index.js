@@ -3,3 +3,4 @@
 // from a single, clean path.
 export * from './branchSchema';
 export * from './inventorySchema';
+export * from './productCategorySchema';

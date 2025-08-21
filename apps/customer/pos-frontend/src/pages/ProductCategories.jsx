@@ -21,6 +21,7 @@ import {
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { useTenant } from "../context/TenantContext";
+import { useUser } from "../context/UserContext";
 
 // --- FIX 1: Import our centralized API utility ---
 import { authenticatedFetch } from "../utils/api";
@@ -29,6 +30,7 @@ const initialFormState = { name: "", description: "" };
 
 const ProductCategories = () => {
   const { tenant } = useTenant();
+  const { user } = useUser();
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -81,27 +83,32 @@ const ProductCategories = () => {
   };
 
   const handleSave = async () => {
-    if (!currentCategory.name) {
-      setFormErrors(["Category Name is required."]);
-      return;
-    }
-    setFormErrors([]);
-
     const method = isEditing ? "PUT" : "POST";
     const url = isEditing
       ? `/api/categories/${currentCategory.id}`
       : "/api/categories";
 
+    const categoryData = {
+      ...currentCategory,
+      userName: user?.name || tenant?.name || "System",
+    };
+
     try {
       // --- FIX 3: Use authenticatedFetch for saving data ---
       await authenticatedFetch(url, {
         method,
-        body: JSON.stringify(currentCategory),
+        body: JSON.stringify(categoryData),
       });
       handleClose();
       fetchCategories();
     } catch (err) {
-      setFormErrors([err.message]);
+      // Handle validation errors from backend
+      if (err.message === 'Validation failed') {
+        // Try to get detailed errors from the response
+        setFormErrors(['Validation failed. Please check your input.']);
+      } else {
+        setFormErrors([err.message]);
+      }
     }
   };
 

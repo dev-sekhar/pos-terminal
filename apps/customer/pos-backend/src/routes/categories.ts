@@ -2,6 +2,8 @@ import { Router } from 'express';
 import * as categoriesController from '../controllers/categoriesController';
 import { rbacMiddleware } from '../middleware/rbacMiddleware';
 import { PERMISSIONS } from '@pos-terminal/permissions';
+import { productCategorySchema } from '@pos-terminal/schemas';
+import { validate } from '../middleware/validate';
 
 const router = Router();
 
@@ -9,11 +11,11 @@ const router = Router();
 // We protect every route with this middleware to ensure proper authorization.
 router.get('/', rbacMiddleware(PERMISSIONS.MANAGE_CATEGORIES), categoriesController.listCategories);
 
-router.post('/', rbacMiddleware(PERMISSIONS.MANAGE_CATEGORIES), categoriesController.createCategory);
+router.post('/', rbacMiddleware(PERMISSIONS.MANAGE_CATEGORIES), validate(productCategorySchema), categoriesController.createCategory);
 
 router.get('/:id', rbacMiddleware(PERMISSIONS.MANAGE_CATEGORIES), categoriesController.getCategoryById);
 
-router.put('/:id', rbacMiddleware(PERMISSIONS.MANAGE_CATEGORIES), categoriesController.updateCategory);
+router.put('/:id', rbacMiddleware(PERMISSIONS.MANAGE_CATEGORIES), validate(productCategorySchema), categoriesController.updateCategory);
 
 router.delete('/:id', rbacMiddleware(PERMISSIONS.MANAGE_CATEGORIES), categoriesController.deleteCategory);
 

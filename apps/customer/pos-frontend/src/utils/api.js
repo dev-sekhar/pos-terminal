@@ -27,7 +27,14 @@ export const authenticatedFetch = async (url, options = {}) => {
       contentType && contentType.includes("application/json")
         ? await response.json()
         : { message: `Request failed with status ${response.status}` };
-    throw new Error(errorData.message);
+    
+    // Handle validation errors with detailed messages
+    if (errorData.errors && Array.isArray(errorData.errors)) {
+      const errorMessages = errorData.errors.map(err => err.message || err).join(', ');
+      throw new Error(errorMessages);
+    }
+    
+    throw new Error(errorData.message || 'Request failed');
   }
 
   // If we get here and there's no JSON, it's an unexpected issue, but we can handle it.
