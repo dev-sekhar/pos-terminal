@@ -24,10 +24,45 @@ export const getSettings = async (requestingUser: User): Promise<TenantSettings>
     timezone: 'UTC',
     units: ['pcs', 'kg', 'ltr', 'box', 'pack'],
     paymentTypes: ['Cash', 'Card', 'UPI', 'Bank Transfer'],
-    tenantDisplayName: ''
+    tenantDisplayName: '',
+    financialYearStart: 'April',
+    dashboardWidgets: {
+      totalToday: true,
+      mtdChart: true,
+      fytdChart: true,
+      topToday: true,
+      topMonth: true,
+      topYear: true
+    }
   };
 
-  return { ...defaultSettings, ...(tenant.settings as TenantSettings) };
+  const dbSettings = (tenant.settings as TenantSettings) || {};
+  const dbWidgets = dbSettings.dashboardWidgets as Record<string, boolean> || {};
+  
+  // Only initialize if dashboardWidgets is completely empty
+  const shouldInitialize = !dbWidgets || Object.keys(dbWidgets).length === 0;
+  
+  if (shouldInitialize) {
+    const initializedSettings = {
+      ...defaultSettings,
+      ...dbSettings,
+      dashboardWidgets: defaultSettings.dashboardWidgets
+    };
+    
+    // Save initialized settings to database
+    await prisma.tenant.update({
+      where: { id: requestingUser.tenantId },
+      data: { settings: initializedSettings }
+    });
+    
+    return initializedSettings;
+  }
+  
+  // If dashboardWidgets exist, use them as-is without merging defaults
+  return {
+    ...defaultSettings,
+    ...dbSettings
+  };
 };
 
 /**
@@ -37,6 +72,7 @@ export const getSettings = async (requestingUser: User): Promise<TenantSettings>
  * @returns The updated settings object.
  */
 export const updateSettings = async (requestingUser: User, newSettingsData: Partial<TenantSettings>): Promise<TenantSettings> => {
+  console.log('Settings Service - Received data:', JSON.stringify(newSettingsData, null, 2));
   try {
     return await prisma.$transaction(async (tx) => {
       // 1. Get the current tenant to retrieve old settings for the audit trail
@@ -46,8 +82,41 @@ export const updateSettings = async (requestingUser: User, newSettingsData: Part
       }
 
       const oldSettings = (tenant.settings as TenantSettings) || {};
-      // Merge new settings with old ones to ensure no data is lost
-      const newSettings = { ...oldSettings, ...newSettingsData };
+      
+      // Proper merge with special handling for dashboardWidgets
+      const oldWidgets = (oldSettings.dashboardWidgets as Record<string, boolean>) || {};
+      const newWidgets = (newSettingsData.dashboardWidgets as Record<string, boolean>) || {};
+      
+      console.log('=== UPDATE SETTINGS DEBUG ===');
+      // Exclude logo to prevent log truncation
+      const oldSettingsNoLogo = { ...oldSettings };
+      if ('logo' in oldSettingsNoLogo) {
+        delete (oldSettingsNoLogo as any).logo;
+      }
+      const newDataNoLogo = { ...newSettingsData };
+      if ('logo' in newDataNoLogo) {
+        delete (newDataNoLogo as any).logo;
+      }
+      
+      console.log('Old settings from DB:', JSON.stringify(oldSettingsNoLogo, null, 2));
+      console.log('New data from frontend:', JSON.stringify(newDataNoLogo, null, 2));
+      console.log('Old widgets:', JSON.stringify(oldWidgets, null, 2));
+      console.log('New widgets:', JSON.stringify(newWidgets, null, 2));
+      
+      const mergedWidgets = { ...oldWidgets, ...newWidgets };
+      console.log('Merged widgets result:', JSON.stringify(mergedWidgets, null, 2));
+      
+      const newSettings = {
+        ...oldSettings,
+        ...newSettingsData,
+        dashboardWidgets: mergedWidgets
+      };
+      
+      const finalSettingsNoLogo = { ...newSettings };
+      if ('logo' in finalSettingsNoLogo) {
+        delete (finalSettingsNoLogo as any).logo;
+      }
+      console.log('Final settings to save to DB:', JSON.stringify(finalSettingsNoLogo, null, 2));
       
       // 2. Create the audit log record
       await tx.auditLog.create({
@@ -70,8 +139,17 @@ export const updateSettings = async (requestingUser: User, newSettingsData: Part
           settings: newSettings,
         },
       });
-
-      return updatedTenant.settings as TenantSettings;
+      
+      const dbResultNoLogo = { ...updatedTenant.settings as any };
+      if ('logo' in dbResultNoLogo) {
+        delete dbResultNoLogo.logo;
+      }
+      console.log('DB UPDATE RESULT:', JSON.stringify(dbResultNoLogo, null, 2));
+      console.log('DB dashboardWidgets saved:', JSON.stringify((updatedTenant.settings as any)?.dashboardWidgets, null, 2));
+      console.log('=== END UPDATE SETTINGS DEBUG ===');
+      
+      // Return the merged settings we just saved, not what's in the database
+      return newSettings;
     });
   } catch (error) {
     console.error('Settings update error:', error);

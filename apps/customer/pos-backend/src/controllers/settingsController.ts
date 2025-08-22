@@ -25,6 +25,7 @@ async function getFullUser(req: AuthenticatedRequest) {
 
 export const getSettings = async (req: Request, res: Response, next: NextFunction) => {
   try {
+    console.log('=== GET SETTINGS CALLED ===');
     const requestingUser = await getFullUser(req as AuthenticatedRequest);
     const settings = await settingsService.getSettings(requestingUser);
     res.json(settings);
@@ -35,8 +36,11 @@ export const getSettings = async (req: Request, res: Response, next: NextFunctio
 
 export const updateSettings = async (req: Request, res: Response, next: NextFunction) => {
   try {
+    console.log('=== CONTROLLER UPDATE CALLED ===');
+    console.log('Settings Controller - Request body dashboardWidgets:', JSON.stringify(req.body.dashboardWidgets, null, 2));
     const requestingUser = await getFullUser(req as AuthenticatedRequest);
     const updatedSettings = await settingsService.updateSettings(requestingUser, req.body);
+    console.log('Settings Controller - Response dashboardWidgets:', JSON.stringify((updatedSettings as any).dashboardWidgets, null, 2));
     res.json(updatedSettings);
   } catch (err) { 
     next(err); 

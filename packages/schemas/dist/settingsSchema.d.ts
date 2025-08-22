@@ -9,6 +9,7 @@ export declare const settingsSchema: Yup.ObjectSchema<{
     taxRate: number | undefined;
     companyName: string | undefined;
     companyAddress: string | undefined;
+    dashboardWidgets: {} | undefined;
 }, Yup.AnyObject, {
     currency: undefined;
     timezone: undefined;
@@ -19,5 +20,6 @@ export declare const settingsSchema: Yup.ObjectSchema<{
     taxRate: undefined;
     companyName: undefined;
     companyAddress: undefined;
+    dashboardWidgets: {};
 }, "">;
 export type SettingsInput = Yup.InferType<typeof settingsSchema>;

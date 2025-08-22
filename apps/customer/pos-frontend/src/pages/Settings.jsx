@@ -19,12 +19,23 @@ import {
   DialogContentText,
   DialogTitle,
   Snackbar,
+  FormControlLabel,
+  Switch,
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { useSettings } from "../context/SettingsContext";
 import { useUser } from "../context/UserContext";
 
 const defaultCurrencies = ["USD", "INR", "EUR", "GBP", "JPY"];
+
+const dashboardWidgets = [
+  { key: 'totalToday', label: 'Total Sales Today' },
+  { key: 'mtdChart', label: 'Sales Chart (MTD)', note: 'Shows sales from 1st of current month to today' },
+  { key: 'fytdChart', label: 'Sales Chart (FYTD)', note: 'Shows sales from start of financial year to today' },
+  { key: 'topToday', label: 'Top 5 Products Today' },
+  { key: 'topMonth', label: 'Top 5 Products This Month' },
+  { key: 'topYear', label: 'Top 5 Products This Year' },
+];
 
 const Settings = () => {
   const { settings, updateSettings, loading, error } = useSettings();
@@ -58,7 +69,9 @@ const Settings = () => {
 
   const handleSimpleChange = async (updateData) => {
     try {
-      await updateSettings({ ...settings, ...updateData });
+      console.log('Frontend - handleSimpleChange updateData:', JSON.stringify(updateData, null, 2));
+      console.log('Frontend - Sending only updateData to backend:', JSON.stringify(updateData, null, 2));
+      await updateSettings(updateData);
       setFeedback({
         isOpen: true,
         message: "Settings updated successfully!",
@@ -272,6 +285,69 @@ const Settings = () => {
               ))}
             </TextField>
           </Grid>
+          <Grid item xs={12} sm={6} md={4}>
+            <TextField
+              select
+              label="Financial Year Start"
+              name="financialYearStart"
+              value={settings.financialYearStart || "April"}
+              onChange={handleLocalizationChange}
+              fullWidth
+              disabled={!isAdmin}
+            >
+              <MenuItem value="January">January</MenuItem>
+              <MenuItem value="April">April</MenuItem>
+              <MenuItem value="July">July</MenuItem>
+              <MenuItem value="October">October</MenuItem>
+            </TextField>
+          </Grid>
+        </Grid>
+      </Paper>
+
+      <Paper sx={{ p: 2, mb: 3 }}>
+        <Typography variant="h6">Dashboard Widgets</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Choose which widgets to display on the dashboard
+        </Typography>
+        <Grid container spacing={2}>
+          {dashboardWidgets.map((widget) => (
+            <Grid item xs={12} sm={6} md={4} key={widget.key}>
+              <Box>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={settings.dashboardWidgets?.[widget.key] ?? true}
+                      onChange={(e) => {
+                        console.log('Frontend - Switch clicked for:', widget.key, 'checked:', e.target.checked);
+                        console.log('Frontend - Current settings:', JSON.stringify(settings, null, 2));
+                        const currentWidgets = settings.dashboardWidgets || {};
+                        const newDashboardWidgets = {
+                          ...currentWidgets,
+                          [widget.key]: e.target.checked,
+                        };
+                        console.log('Frontend - Updating widget:', widget.key, 'to:', e.target.checked);
+                        console.log('Frontend - Current widgets:', currentWidgets);
+                        console.log('Frontend - New dashboardWidgets:', newDashboardWidgets);
+                        handleSimpleChange({
+                          dashboardWidgets: newDashboardWidgets,
+                        });
+                      }}
+                      disabled={!isAdmin}
+                    />
+                  }
+                  label={widget.label}
+                />
+                {widget.note && (
+                  <Typography variant="caption" display="block" color="text.secondary" sx={{ ml: 4, mt: -0.5 }}>
+                    {widget.key === 'fytdChart' ? 
+                      `Shows sales from ${settings.financialYearStart || 'April'} 1st to today` : 
+                      widget.note
+                    }
+                  </Typography>
+                )}
+              </Box>
+            </Grid>
+          ))}
         </Grid>
       </Paper>
 

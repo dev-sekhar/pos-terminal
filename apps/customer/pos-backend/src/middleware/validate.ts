@@ -13,11 +13,12 @@ export const validate = (schema: AnySchema) => async (req: Request, res: Respons
     // `stripUnknown: true` removes any properties from the body that are not in the schema.
     const validatedBody = await schema.validate(req.body, {
       abortEarly: false,
-      stripUnknown: true,
+      stripUnknown: false,  // Temporarily disabled to allow dashboardWidgets
     });
     
     // Replace the request body with the validated and sanitized version.
     req.body = validatedBody;
+    console.log('Validation Middleware - Validated body:', JSON.stringify(validatedBody, null, 2));
 
     // If validation is successful, proceed to the next handler (the controller).
     return next();

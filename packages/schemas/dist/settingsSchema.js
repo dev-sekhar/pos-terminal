@@ -8,5 +8,6 @@ export const settingsSchema = Yup.object().shape({
     logo: Yup.string().optional(),
     taxRate: Yup.number().optional(),
     companyName: Yup.string().optional(),
-    companyAddress: Yup.string().optional()
+    companyAddress: Yup.string().optional(),
+    dashboardWidgets: Yup.object().optional()
 });

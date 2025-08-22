@@ -52,12 +52,16 @@ export const SettingsProvider = ({ children }) => {
         return;
       }
       try {
+        console.log('[SettingsContext] Sending update:', JSON.stringify(newSettings, null, 2));
         const updated = await authenticatedFetch("/api/settings", {
           method: "PUT",
           body: JSON.stringify(newSettings),
         });
+        console.log('[SettingsContext] Received updated settings:', JSON.stringify(updated, null, 2));
         setSettings(updated);
+        console.log('[SettingsContext] State updated successfully');
       } catch (err) {
+        console.error('[SettingsContext] Update failed:', err);
         setError(err.message);
       }
     },
