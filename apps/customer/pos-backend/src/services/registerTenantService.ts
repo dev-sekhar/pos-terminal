@@ -9,10 +9,16 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 export const registerTenant = async (tenantData: any, userData: any) => {
   // CHANGE 2: Add the type 'Prisma.TransactionClient' to the 'tx' parameter
   return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    // Get the Free plan
+    const freePlan = await tx.pricingPlan.findFirst({
+      where: { name: 'Free', active: true }
+    });
+
     const tenant = await tx.tenant.create({ 
       data: { 
         name: tenantData.name, 
-        subdomain: tenantData.subdomain 
+        subdomain: tenantData.subdomain,
+        pricingPlanId: freePlan?.id
       } 
     });
 

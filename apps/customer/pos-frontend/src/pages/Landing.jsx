@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   AppBar,
   Toolbar,
@@ -20,6 +20,8 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  FormControlLabel,
+  Checkbox,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 
@@ -27,40 +29,78 @@ const Landing = () => {
   const navigate = useNavigate();
   const [loginDialog, setLoginDialog] = useState(false);
   const [domain, setDomain] = useState('');
+  const [rememberDomain, setRememberDomain] = useState(false);
+  const [pricingTiers, setPricingTiers] = useState([]);
+
+  // Load saved domain preference
+  useEffect(() => {
+    const savedDomain = localStorage.getItem('preferredDomain');
+    if (savedDomain) {
+      setDomain(savedDomain);
+      setRememberDomain(true);
+    }
+  }, [loginDialog]);
+
+  // Fetch pricing plans
+  useEffect(() => {
+    const fetchPricingPlans = async () => {
+      try {
+        const response = await fetch('/api/pricing');
+        if (response.ok) {
+          const plans = await response.json();
+          setPricingTiers(plans);
+        }
+      } catch (error) {
+        console.error('Failed to fetch pricing plans:', error);
+      }
+    };
+    fetchPricingPlans();
+  }, []);
 
 
   const handleLogin = () => {
     if (!domain.trim()) return;
+    
+    // Save domain preference if remember is checked
+    if (rememberDomain) {
+      localStorage.setItem('preferredDomain', domain);
+    }
+    
     setLoginDialog(false);
     window.location.href = `http://${domain}.lvh.me:3000/login`;
   };
 
-  const pricingTiers = [
+  const defaultPricingTiers = [
     {
       name: 'Basic',
       price: '$29/month',
-      users: '5 Users',
-      branches: '5 Branches',
-      products: '50 Products',
+      maxUsers: '5 Users',
+      maxBranches: '5 Branches',
+      maxProducts: '50 Products',
       features: ['Basic Dashboard', 'Sales Management', 'Inventory Tracking', 'Email Support']
     },
     {
       name: 'Premium',
       price: '$79/month',
-      users: '15 Users',
-      branches: '20 Branches',
-      products: '200 Products',
+      maxUsers: '15 Users',
+      maxBranches: '20 Branches',
+      maxProducts: '200 Products',
       features: ['Advanced Dashboard', 'Multi-branch Management', 'Advanced Reports', 'Priority Support']
     },
     {
       name: 'Enterprise',
       price: 'Contact Us',
-      users: 'Unlimited',
-      branches: 'Unlimited',
-      products: 'Unlimited',
+      maxUsers: 'Unlimited',
+      maxBranches: 'Unlimited',
+      maxProducts: 'Unlimited',
       features: ['Custom Features', 'Dedicated Support', 'API Access', 'Custom Integrations']
     }
   ];
+
+  const displayTiers = pricingTiers.length > 0 ? pricingTiers.map(tier => ({
+    ...tier,
+    features: defaultPricingTiers.find(dt => dt.name === tier.name)?.features || []
+  })) : defaultPricingTiers;
 
   return (
     <Box>
@@ -68,7 +108,7 @@ const Landing = () => {
       <AppBar position="static">
         <Toolbar>
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
-            POS Terminal
+            {import.meta.env.VITE_APP_NAME || "POS Terminal"}
           </Typography>
           <Button color="inherit" onClick={() => setLoginDialog(true)}>
             Login
@@ -90,7 +130,7 @@ const Landing = () => {
       >
         <Container maxWidth="md">
           <Typography variant="h2" component="h1" gutterBottom>
-            Modern POS Terminal Solution
+            Modern {import.meta.env.VITE_APP_NAME || "POS Terminal"} Solution
           </Typography>
           <Typography variant="h5" sx={{ mb: 4, opacity: 0.9 }}>
             Streamline your business operations with our comprehensive point-of-sale system
@@ -171,7 +211,7 @@ const Landing = () => {
               <TableHead>
                 <TableRow>
                   <TableCell><Typography variant="h6">Features</Typography></TableCell>
-                  {pricingTiers.map((tier) => (
+                  {displayTiers.map((tier) => (
                     <TableCell key={tier.name} align="center">
                       <Typography variant="h6" color="primary">{tier.name}</Typography>
                       <Typography variant="h5" sx={{ mt: 1 }}>{tier.price}</Typography>
@@ -182,41 +222,41 @@ const Landing = () => {
               <TableBody>
                 <TableRow>
                   <TableCell><strong>Max Users</strong></TableCell>
-                  {pricingTiers.map((tier) => (
+                  {displayTiers.map((tier) => (
                     <TableCell key={tier.name} align="center">
-                      <Chip label={tier.users} color={tier.name === 'Enterprise' ? 'success' : 'default'} />
+                      <Chip label={tier.maxUsers} color={tier.name === 'Enterprise' ? 'success' : 'default'} />
                     </TableCell>
                   ))}
                 </TableRow>
                 <TableRow>
                   <TableCell><strong>Max Branches</strong></TableCell>
-                  {pricingTiers.map((tier) => (
+                  {displayTiers.map((tier) => (
                     <TableCell key={tier.name} align="center">
-                      <Chip label={tier.branches} color={tier.name === 'Enterprise' ? 'success' : 'default'} />
+                      <Chip label={tier.maxBranches} color={tier.name === 'Enterprise' ? 'success' : 'default'} />
                     </TableCell>
                   ))}
                 </TableRow>
                 <TableRow>
                   <TableCell><strong>Max Products</strong></TableCell>
-                  {pricingTiers.map((tier) => (
+                  {displayTiers.map((tier) => (
                     <TableCell key={tier.name} align="center">
-                      <Chip label={tier.products} color={tier.name === 'Enterprise' ? 'success' : 'default'} />
+                      <Chip label={tier.maxProducts} color={tier.name === 'Enterprise' ? 'success' : 'default'} />
                     </TableCell>
                   ))}
                 </TableRow>
-                {pricingTiers[0].features.map((feature, index) => (
+                {displayTiers[0]?.features?.map((feature, index) => (
                   <TableRow key={feature}>
                     <TableCell><strong>{feature}</strong></TableCell>
-                    {pricingTiers.map((tier) => (
+                    {displayTiers.map((tier) => (
                       <TableCell key={tier.name} align="center">
-                        {tier.features[index] ? '✅' : '❌'}
+                        {tier.features?.[index] ? '✅' : '❌'}
                       </TableCell>
                     ))}
                   </TableRow>
                 ))}
                 <TableRow>
                   <TableCell></TableCell>
-                  {pricingTiers.map((tier) => (
+                  {displayTiers.map((tier) => (
                     <TableCell key={tier.name} align="center">
                       <Button
                         variant={tier.name === 'Premium' ? 'contained' : 'outlined'}
@@ -238,7 +278,7 @@ const Landing = () => {
       <Box sx={{ bgcolor: 'primary.main', color: 'white', py: 4, textAlign: 'center' }}>
         <Container>
           <Typography variant="body1">
-            © 2024 POS Terminal. All rights reserved.
+            © 2024 {import.meta.env.VITE_APP_NAME || "POS Terminal"}. All rights reserved.
           </Typography>
         </Container>
       </Box>
@@ -264,6 +304,16 @@ const Landing = () => {
             onChange={(e) => setDomain(e.target.value)}
             helperText="This will redirect you to yourcompany.lvh.me:3000"
             onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
+          />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={rememberDomain}
+                onChange={(e) => setRememberDomain(e.target.checked)}
+              />
+            }
+            label="Remember this domain"
+            sx={{ mt: 2 }}
           />
         </DialogContent>
         <DialogActions>

@@ -39,6 +39,7 @@ const Branches = () => {
   const [open, setOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [currentBranch, setCurrentBranch] = useState(initialFormState);
+  const [planLimits, setPlanLimits] = useState(null);
   
   // State to hold structured validation errors: { name: 'Error message', tag: '...' }
   const [formErrors, setFormErrors] = useState({});
@@ -47,8 +48,12 @@ const Branches = () => {
     setLoading(true);
     setError("");
     try {
-      const data = await authenticatedFetch("/api/branches");
-      setBranches(data);
+      const [branchesData, limitsData] = await Promise.all([
+        authenticatedFetch("/api/branches"),
+        authenticatedFetch("/api/pricing/limits")
+      ]);
+      setBranches(branchesData);
+      setPlanLimits(limitsData);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -69,7 +74,10 @@ const Branches = () => {
     setOpen(true);
   };
 
-  const handleClose = () => setOpen(false);
+  const handleClose = () => {
+    setOpen(false);
+    setError(""); // Clear error when dialog is closed
+  };
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -132,12 +140,37 @@ const Branches = () => {
   if (loading) return <CircularProgress />;
   if (error && !open) return <Alert severity="error">{error}</Alert>; // Only show page-level error when dialog is closed
 
+  const isAtLimit = planLimits?.branches && 
+    planLimits.branches.maxAllowed !== 'unlimited' && 
+    planLimits.branches.currentCount >= planLimits.branches.maxAllowed;
+
+  const remaining = planLimits?.branches && planLimits.branches.maxAllowed !== 'unlimited' 
+    ? planLimits.branches.maxAllowed - planLimits.branches.currentCount 
+    : null;
+
   return (
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
         <Typography variant="h4">Branches</Typography>
-        <Button variant="contained" onClick={() => handleOpen()}>Add Branch</Button>
+        <Button 
+          variant="contained" 
+          onClick={() => handleOpen()}
+          disabled={isAtLimit}
+        >
+          Add Branch
+        </Button>
       </Box>
+      
+      {planLimits?.branches && (
+        <Alert severity={isAtLimit ? "warning" : "info"} sx={{ mb: 2 }}>
+          {planLimits.branches.maxAllowed === 'unlimited' 
+            ? `Branch usage (${planLimits.branches.currentCount}/unlimited) for ${planLimits.planName} plan.`
+            : isAtLimit 
+              ? `Branch limit reached (${planLimits.branches.currentCount}/${planLimits.branches.maxAllowed}) for ${planLimits.planName} plan. Upgrade your plan to add more branches.`
+              : `Branch usage (${planLimits.branches.currentCount}/${planLimits.branches.maxAllowed}) for ${planLimits.planName} plan. You can add ${remaining} more branch${remaining !== 1 ? 'es' : ''}.`
+          }
+        </Alert>
+      )}
       <Paper>
         <Table>
           <TableHead>
@@ -199,7 +232,13 @@ const Branches = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={handleClose}>Cancel</Button>
-          <Button onClick={handleSave} variant="contained">{isEditing ? "Save" : "Add"}</Button>
+          <Button 
+            onClick={handleSave} 
+            variant="contained" 
+            disabled={error && error.includes('limit exceeded')}
+          >
+            {isEditing ? "Save" : "Add"}
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>

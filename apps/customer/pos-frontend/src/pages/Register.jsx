@@ -9,6 +9,7 @@ import {
   Paper,
   Link
 } from '@mui/material';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useNavigate } from 'react-router-dom';
 import { useTenant } from '../context/TenantContext';
 import { useUser } from '../context/UserContext';
@@ -80,6 +81,13 @@ const Register = () => {
 
   return (
     <Container maxWidth="sm" sx={{ mt: 8 }}>
+      <Button
+        startIcon={<ArrowBackIcon />}
+        onClick={() => navigate('/')}
+        sx={{ mb: 2 }}
+      >
+        Back to Home
+      </Button>
       <Paper sx={{ p: 4 }}>
         <Typography variant="h4" component="h1" gutterBottom textAlign="center">
           Create Your Account

@@ -2,6 +2,7 @@ import { PrismaClient, Prisma, User, Role } from '@prisma/client';
 import { UserContextPayload } from '../types/custom';
 import prisma from '../lib/prisma';
 import * as bcrypt from 'bcryptjs';
+import { PricingPlanEnforcer } from './planLimitService';
 
 // List users, securely scoped by the requesting user's role and branch
 export const listUsers = async (requestingUser: UserContextPayload): Promise<User[]> => {
@@ -46,6 +47,9 @@ export const createUser = async (data: any, requestingUser: UserContextPayload):
   // Filter out userName and other invalid fields
   const { name, email, password, role, branchId } = data;
   const { tenantId, role: requesterRole, branchId: requesterBranchId, id: creatorId } = requestingUser;
+
+  // Check plan limits before creating user
+  await PricingPlanEnforcer.enforceLimit(tenantId, 'users');
 
   let finalBranchId = branchId;
 

@@ -15,6 +15,7 @@ import { calcItemTotal, calcSubtotal, calcTotal } from "../../utils/salesUtils";
 import SalesTable from "./SalesTable";
 import NewSaleDialog from "./NewSaleDialog";
 import PrintLayout from "../../components/PrintLayout";
+import SearchBar from "../../components/SearchBar";
 import "../../styles/PrintLayout.css";
 import "../../styles/Sales.css";
 
@@ -35,6 +36,7 @@ const Sales = () => {
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState({});
   const [printData, setPrintData] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
   const printRef = useRef(null);
 
   const fetchData = useCallback(async () => {
@@ -189,6 +191,20 @@ const Sales = () => {
   if (error || settingsError)
     return <Alert severity="error">{error || settingsError}</Alert>;
 
+  // Filter sales based on search term
+  const filteredSales = sales.filter(sale => {
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      sale.invoice.toLowerCase().includes(searchLower) ||
+      sale.datetime.split('T')[0].includes(searchTerm) || // Use only date part (YYYY-MM-DD)
+      sale.user?.name.toLowerCase().includes(searchLower) || // Salesperson
+      sale.branch?.name.toLowerCase().includes(searchLower) || // Branch
+      sale.items?.some(item => 
+        item.product?.name.toLowerCase().includes(searchLower) // Product names
+      )
+    );
+  });
+
   return (
     <Box>
       <Box
@@ -203,8 +219,15 @@ const Sales = () => {
         </Button>
       </Box>
 
+      <SearchBar 
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        placeholder="Search sales by invoice, date, salesperson, branch, or product..."
+        helperText="Search by invoice, salesperson, branch, product name, or date (YYYY-MM-DD format)"
+      />
+
       <SalesTable
-        sales={sales}
+        sales={filteredSales}
         settings={settings}
         expanded={expanded}
         onExpandClick={handleExpandClick}

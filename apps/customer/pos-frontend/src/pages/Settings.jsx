@@ -55,6 +55,7 @@ const Settings = () => {
   });
   const [newUnit, setNewUnit] = useState("");
   const [newPaymentType, setNewPaymentType] = useState("");
+  const [pricingPlans, setPricingPlans] = useState([]);
 
   const timezones = useMemo(() => {
     try {
@@ -66,6 +67,22 @@ const Settings = () => {
   }, []);
 
   const isAdmin = user?.role === "ADMIN";
+
+  // Fetch pricing plans
+  React.useEffect(() => {
+    const fetchPricingPlans = async () => {
+      try {
+        const response = await fetch('/api/pricing');
+        if (response.ok) {
+          const plans = await response.json();
+          setPricingPlans(plans);
+        }
+      } catch (error) {
+        console.error('Failed to fetch pricing plans:', error);
+      }
+    };
+    fetchPricingPlans();
+  }, []);
 
   const handleSimpleChange = async (updateData) => {
     try {
@@ -349,6 +366,50 @@ const Settings = () => {
             </Grid>
           ))}
         </Grid>
+      </Paper>
+
+      <Paper sx={{ p: 2, mb: 3 }}>
+        <Typography variant="h6">Pricing Plan</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Select your current pricing plan
+        </Typography>
+        <TextField
+          select
+          label="Current Plan"
+          value={settings.pricingPlanId || ""}
+          onChange={(e) => handleSimpleChange({ pricingPlanId: parseInt(e.target.value) })}
+          sx={{ minWidth: 200 }}
+          disabled={!isAdmin}
+        >
+          {pricingPlans.map((plan) => (
+            <MenuItem key={plan.id} value={plan.id}>
+              {plan.name} - {plan.price}
+            </MenuItem>
+          ))}
+        </TextField>
+        {settings.pricingPlanId && (
+          <Box sx={{ mt: 2 }}>
+            {(() => {
+              const currentPlan = pricingPlans.find(p => p.id === settings.pricingPlanId);
+              return currentPlan ? (
+                <Box>
+                  <Typography variant="subtitle2">Plan Limits:</Typography>
+                  <Typography variant="body2">• Users: {currentPlan.maxUsers}</Typography>
+                  <Typography variant="body2">• Branches: {currentPlan.maxBranches}</Typography>
+                  <Typography variant="body2">• Products: {currentPlan.maxProducts}</Typography>
+                  {currentPlan.features && (
+                    <Box sx={{ mt: 1 }}>
+                      <Typography variant="subtitle2">Features:</Typography>
+                      {currentPlan.features.map((feature, index) => (
+                        <Typography key={index} variant="body2">• {feature}</Typography>
+                      ))}
+                    </Box>
+                  )}
+                </Box>
+              ) : null;
+            })()}
+          </Box>
+        )}
       </Paper>
 
       <Grid container spacing={3}>

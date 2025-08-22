@@ -24,14 +24,16 @@ enum Role {
 // =========================
 
 model Tenant {
-  id        String   @id @default(cuid())
-  name      String
-  subdomain String   @unique
-  settings  Json?
-  deleted   Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String  @id @default(cuid())
+  name          String
+  subdomain     String  @unique
+  settings      Json?
+  pricingPlanId Int?
+  deleted       Boolean @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
+  pricingPlan   PricingPlan? @relation(fields: [pricingPlanId], references: [id])
   users         User[]
   branches      Branch[]
   products      Product[]
@@ -184,7 +186,7 @@ model Inventory {
 
 model Sale {
   id          Int        @id @default(autoincrement())
-  invoice     String     @unique
+  invoice     String
   total       Float
   discount    Float?     @default(0)
   paymentType String
@@ -202,6 +204,7 @@ model Sale {
   createdBy   User       @relation("CreatedSales", fields: [createdById], references: [id])
   items       SaleItem[]
 
+  @@unique([tenantId, invoice])
   @@index([tenantId])
   @@index([datetime])
 }
@@ -252,7 +255,7 @@ model TenantsOnSuppliers {
 
 model Purchase {
   id          Int            @id @default(autoincrement())
-  poNumber    String         @unique
+  poNumber    String
   datetime    DateTime
   total       Float          @default(0)
   status      String         @default("completed")
@@ -268,6 +271,7 @@ model Purchase {
   createdBy   User           @relation("CreatedPurchases", fields: [createdById], references: [id])
   items       PurchaseItem[]
 
+  @@unique([tenantId, poNumber])
   @@index([tenantId])
   @@index([datetime])
 }
@@ -285,4 +289,18 @@ model PurchaseItem {
 
   @@unique([tenantId, purchaseId, productId])
   @@index([tenantId])
+}
+
+model PricingPlan {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  price       String
+  maxUsers    String
+  maxBranches String
+  maxProducts String
+  features    Json?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tenants     Tenant[]
 }

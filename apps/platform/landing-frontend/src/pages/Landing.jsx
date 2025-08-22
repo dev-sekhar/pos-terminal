@@ -6,32 +6,7 @@ const Landing = () => {
     window.location.href = `http://lvh.me:3000${path}`;
   };
 
-  const pricingTiers = [
-    {
-      name: 'Basic',
-      price: '$29/month',
-      users: '5 Users',
-      branches: '5 Branches',
-      products: '50 Products',
-      features: ['Basic Dashboard', 'Sales Management', 'Inventory Tracking', 'Email Support']
-    },
-    {
-      name: 'Premium',
-      price: '$79/month',
-      users: '15 Users',
-      branches: '20 Branches',
-      products: '200 Products',
-      features: ['Advanced Dashboard', 'Multi-branch Management', 'Advanced Reports', 'Priority Support']
-    },
-    {
-      name: 'Enterprise',
-      price: 'Contact Us',
-      users: 'Unlimited',
-      branches: 'Unlimited',
-      products: 'Unlimited',
-      features: ['Custom Features', 'Dedicated Support', 'API Access', 'Custom Integrations']
-    }
-  ];
+  // Pricing data now comes from API - remove hardcoded data
 
   return (
     <div>

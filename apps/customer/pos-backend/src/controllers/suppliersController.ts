@@ -28,6 +28,22 @@ export const createSupplier = async (req: Request, res: Response, next: NextFunc
   }
 };
 
+export const updateSupplier = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const supplierId = Number(req.params.id);
+    const tenantId = authReq.tenant.id;
+
+    const supplier = await suppliersService.updateSupplier(supplierId, req.body, tenantId);
+    if (!supplier) {
+      return res.status(404).json({ message: 'Supplier not found' });
+    }
+    res.json(supplier);
+  } catch (err) { 
+    next(err); 
+  }
+};
+
 export const deleteSupplier = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const authReq = req as AuthenticatedRequest;

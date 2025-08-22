@@ -9,10 +9,10 @@ type TenantSettings = Prisma.JsonObject;
  * @param requestingUser The full User object from the database.
  * @returns The tenant's settings object.
  */
-export const getSettings = async (requestingUser: User): Promise<TenantSettings> => {
+export const getSettings = async (requestingUser: User): Promise<TenantSettings & { pricingPlanId?: number }> => {
   const tenant = await prisma.tenant.findUnique({
     where: { id: requestingUser.tenantId },
-    select: { settings: true },
+    select: { settings: true, pricingPlanId: true },
   });
 
   if (!tenant) {
@@ -55,13 +55,17 @@ export const getSettings = async (requestingUser: User): Promise<TenantSettings>
       data: { settings: initializedSettings }
     });
     
-    return initializedSettings;
+    return {
+      ...initializedSettings,
+      pricingPlanId: tenant.pricingPlanId ?? undefined
+    };
   }
   
   // If dashboardWidgets exist, use them as-is without merging defaults
   return {
     ...defaultSettings,
-    ...dbSettings
+    ...dbSettings,
+    pricingPlanId: tenant.pricingPlanId ?? undefined
   };
 };
 
@@ -71,7 +75,7 @@ export const getSettings = async (requestingUser: User): Promise<TenantSettings>
  * @param newSettingsData The new settings data to merge and save.
  * @returns The updated settings object.
  */
-export const updateSettings = async (requestingUser: User, newSettingsData: Partial<TenantSettings>): Promise<TenantSettings> => {
+export const updateSettings = async (requestingUser: User, newSettingsData: Partial<TenantSettings & { pricingPlanId?: number }>): Promise<TenantSettings & { pricingPlanId?: number }> => {
   console.log('Settings Service - Received data:', JSON.stringify(newSettingsData, null, 2));
   try {
     return await prisma.$transaction(async (tx) => {
@@ -132,12 +136,15 @@ export const updateSettings = async (requestingUser: User, newSettingsData: Part
         },
       });
 
-      // 3. Update the tenant with the fully merged new settings
+      // 3. Update the tenant with the fully merged new settings and pricingPlanId
+      const updateData: any = { settings: newSettings };
+      if ('pricingPlanId' in newSettingsData) {
+        updateData.pricingPlanId = newSettingsData.pricingPlanId;
+      }
+      
       const updatedTenant = await tx.tenant.update({
         where: { id: requestingUser.tenantId },
-        data: {
-          settings: newSettings,
-        },
+        data: updateData,
       });
       
       const dbResultNoLogo = { ...updatedTenant.settings as any };
@@ -149,7 +156,10 @@ export const updateSettings = async (requestingUser: User, newSettingsData: Part
       console.log('=== END UPDATE SETTINGS DEBUG ===');
       
       // Return the merged settings we just saved, not what's in the database
-      return newSettings;
+      return {
+        ...newSettings,
+        pricingPlanId: updatedTenant.pricingPlanId ?? undefined
+      };
     });
   } catch (error) {
     console.error('Settings update error:', error);

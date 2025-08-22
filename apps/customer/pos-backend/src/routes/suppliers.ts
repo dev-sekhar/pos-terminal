@@ -13,6 +13,8 @@ router.get('/', rbacMiddleware(PERMISSIONS.MANAGE_SUPPLIERS), suppliersControlle
 
 router.post('/', rbacMiddleware(PERMISSIONS.MANAGE_SUPPLIERS), validate(supplierSchema), suppliersController.createSupplier);
 
+router.put('/:id', rbacMiddleware(PERMISSIONS.MANAGE_SUPPLIERS), validate(supplierSchema), suppliersController.updateSupplier);
+
 router.delete('/:id', rbacMiddleware(PERMISSIONS.MANAGE_SUPPLIERS), suppliersController.deleteSupplier);
 
 export default router;

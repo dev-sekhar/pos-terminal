@@ -26,7 +26,14 @@ const Header = () => {
       sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}
     >
       <Toolbar>
-        <Typography variant="h6">
+        <Typography 
+          variant="h6" 
+          sx={{ cursor: 'pointer' }}
+          onClick={() => {
+            logout();
+            window.location.href = '/';
+          }}
+        >
           {import.meta.env.VITE_APP_NAME || "POS Terminal"}
         </Typography>
         <Box

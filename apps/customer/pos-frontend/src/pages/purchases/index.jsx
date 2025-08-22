@@ -13,6 +13,7 @@ import { authenticatedFetch } from "../../utils/api";
 import PurchasesTable from "./PurchasesTable";
 import NewPurchaseDialog from "./NewPurchaseDialog";
 import PrintLayout from "../../components/PrintLayout";
+import SearchBar from "../../components/SearchBar";
 import "../../styles/PrintLayout.css";
 
 const Purchases = () => {
@@ -32,6 +33,7 @@ const Purchases = () => {
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState({});
   const [printData, setPrintData] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
   const printRef = useRef(null);
 
   const fetchData = useCallback(async () => {
@@ -136,6 +138,20 @@ const Purchases = () => {
   if (error || settingsError)
     return <Alert severity="error">{error || settingsError}</Alert>;
 
+  // Filter purchases based on search term
+  const filteredPurchases = purchases.filter(purchase => {
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      purchase.poNumber.toLowerCase().includes(searchLower) ||
+      purchase.datetime.split('T')[0].includes(searchTerm) || // Use only date part (YYYY-MM-DD)
+      purchase.supplier?.name.toLowerCase().includes(searchLower) || // Supplier
+      purchase.branch?.name.toLowerCase().includes(searchLower) || // Branch
+      purchase.items?.some(item => 
+        item.product?.name.toLowerCase().includes(searchLower) // Product names
+      )
+    );
+  });
+
   return (
     <Box>
       <Box
@@ -154,8 +170,15 @@ const Purchases = () => {
         </Button>
       </Box>
 
+      <SearchBar 
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        placeholder="Search purchases by PO number, date, supplier, branch, or product..."
+        helperText="Search by PO number, supplier, branch, product name, or date (YYYY-MM-DD format)"
+      />
+
       <PurchasesTable
-        purchases={purchases}
+        purchases={filteredPurchases}
         settings={settings}
         expanded={expanded}
         onExpandClick={handleExpandClick}

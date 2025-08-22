@@ -33,6 +33,7 @@ import { useTenant } from "../context/TenantContext";
 import { useUser } from "../context/UserContext";
 import { useSettings } from "../context/SettingsContext";
 import { authenticatedFetch } from "../utils/api";
+import SearchBar from "../components/SearchBar";
 
 const initialFormState = {
   name: "",
@@ -55,6 +56,8 @@ const Products = () => {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [planLimits, setPlanLimits] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const [open, setOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -73,12 +76,14 @@ const Products = () => {
     setLoading(true);
     setError("");
     try {
-      const [productsData, categoriesData] = await Promise.all([
+      const [productsData, categoriesData, limitsData] = await Promise.all([
         authenticatedFetch("/api/products"),
         authenticatedFetch("/api/categories"),
+        authenticatedFetch("/api/pricing/limits")
       ]);
       setProducts(productsData || []);
       setCategories(categoriesData || []);
+      setPlanLimits(limitsData);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -126,7 +131,10 @@ const Products = () => {
     setOpen(true);
   };
 
-  const handleClose = () => setOpen(false);
+  const handleClose = () => {
+    setOpen(false);
+    setFormErrors([]); // Clear errors when dialog is closed
+  };
   const handleChange = (e) =>
     setCurrentProduct((p) => ({ ...p, [e.target.name]: e.target.value }));
 
@@ -230,10 +238,24 @@ const Products = () => {
 
   const canManage = loggedInUser.role === "ADMIN";
   
+  const isAtLimit = planLimits?.products && 
+    planLimits.products.maxAllowed !== 'unlimited' && 
+    planLimits.products.currentCount >= planLimits.products.maxAllowed;
+
+  const remaining = planLimits?.products && planLimits.products.maxAllowed !== 'unlimited' 
+    ? planLimits.products.maxAllowed - planLimits.products.currentCount 
+    : null;
+  
   const currency = settings?.currency || '$';
 
-  // Group products by category
-  const groupedProducts = products.reduce((acc, product) => {
+  // Filter products based on search term
+  const filteredProducts = products.filter(product => 
+    product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    product.code.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // Group filtered products by category
+  const groupedProducts = filteredProducts.reduce((acc, product) => {
     const categoryName = product.productCategory?.name || "Uncategorized";
     if (!acc[categoryName]) {
       acc[categoryName] = [];
@@ -264,6 +286,7 @@ const Products = () => {
               variant="contained"
               onClick={() => handleOpen()}
               sx={{ mr: 1 }}
+              disabled={isAtLimit}
             >
               Add Product
             </Button>
@@ -271,12 +294,31 @@ const Products = () => {
               variant="outlined"
               onClick={handleImportOpen}
               startIcon={<UploadIcon />}
+              disabled={isAtLimit}
             >
               Import
             </Button>
           </Box>
         )}
       </Box>
+      
+      {planLimits?.products && (
+        <Alert severity={isAtLimit ? "warning" : "info"} sx={{ mb: 2 }}>
+          {planLimits.products.maxAllowed === 'unlimited' 
+            ? `Product usage (${planLimits.products.currentCount}/unlimited) for ${planLimits.planName} plan.`
+            : isAtLimit 
+              ? `Product limit reached (${planLimits.products.currentCount}/${planLimits.products.maxAllowed}) for ${planLimits.planName} plan. Upgrade your plan to add more products.`
+              : `Product usage (${planLimits.products.currentCount}/${planLimits.products.maxAllowed}) for ${planLimits.planName} plan. You can add ${remaining} more product${remaining !== 1 ? 's' : ''}.`
+          }
+        </Alert>
+      )}
+      
+      <SearchBar 
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        placeholder="Search products by name or code..."
+      />
+      
       <Paper>
         <Table>
           <TableHead>
@@ -395,7 +437,11 @@ const Products = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={handleClose}>Cancel</Button>
-          <Button onClick={handleSave} variant="contained">
+          <Button 
+            onClick={handleSave} 
+            variant="contained"
+            disabled={formErrors.some(error => error.includes('limit exceeded'))}
+          >
             {isEditing ? "Save" : "Add"}
           </Button>
         </DialogActions>
@@ -492,7 +538,9 @@ const Products = () => {
             onClick={handleImportConfirm}
             variant="contained"
             disabled={
-              importDialog.data.length === 0 || importDialog.errors.length > 0
+              importDialog.data.length === 0 || 
+              importDialog.errors.length > 0 ||
+              importDialog.errors.some(error => error.includes && error.includes('limit exceeded'))
             }
           >
             Import {importDialog.data.length} Products

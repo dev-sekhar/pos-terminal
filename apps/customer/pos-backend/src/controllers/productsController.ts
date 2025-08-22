@@ -36,7 +36,10 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
     const context = createServiceContext(req as AuthenticatedRequest);
     const product = await productsService.createProduct(req.body, context);
     res.status(201).json(product);
-  } catch (err) { 
+  } catch (err: any) { 
+    if (err.message && err.message.includes('limit exceeded')) {
+      return res.status(400).json({ message: err.message });
+    }
     next(err); 
   }
 };
@@ -95,7 +98,10 @@ export const importProducts = async (req: Request, res: Response, next: NextFunc
         }
         const result = await productsService.importProductsFromCSV(products, context);
         res.status(201).json(result);
-    } catch (err) { 
+    } catch (err: any) { 
+        if (err.message && (err.message.includes('limit exceeded') || err.message.includes('Cannot import'))) {
+            return res.status(400).json({ message: err.message });
+        }
         next(err); 
     }
 };

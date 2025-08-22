@@ -42,7 +42,10 @@ export const createBranch = async (req: Request, res: Response, next: NextFuncti
     const context = await createFullUserContext(req as AuthenticatedRequest);
     const branch = await branchesService.createBranch(req.body, context);
     res.status(201).json(branch);
-  } catch (err) {
+  } catch (err: any) {
+    if (err.message && err.message.includes('limit exceeded')) {
+      return res.status(400).json({ message: err.message });
+    }
     next(err);
   }
 };

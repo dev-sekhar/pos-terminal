@@ -5,11 +5,14 @@ import {
   Button,
   Divider,
   Alert,
+  FormControlLabel,
+  Checkbox,
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import React, { useState, useEffect } from "react"; // 1. Import useEffect
 import GoogleIcon from "@mui/icons-material/Google";
 import FacebookIcon from "@mui/icons-material/Facebook";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useTenant } from "../context/TenantContext";
 import { useUser } from "../context/UserContext";
 
@@ -21,6 +24,7 @@ const Login = () => {
 
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
   const [loginError, setLoginError] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
 
   // 3. This effect handles navigation safely after state has been updated.
   useEffect(() => {
@@ -33,11 +37,20 @@ const Login = () => {
 
   // 4. Create a helper to handle success logic, reducing duplication.
   const handleAuthSuccess = (data) => {
-    // Store auth data in localStorage
-    localStorage.setItem("token", data.token);
-    localStorage.setItem("tenantId", data.tenant.id);
-    localStorage.setItem("tenantName", data.tenant.name);
-    localStorage.setItem("user", JSON.stringify(data.user));
+    // Store auth data in localStorage or sessionStorage based on remember me
+    const storage = rememberMe ? localStorage : sessionStorage;
+    storage.setItem("token", data.token);
+    storage.setItem("tenantId", data.tenant.id);
+    storage.setItem("tenantName", data.tenant.name);
+    storage.setItem("user", JSON.stringify(data.user));
+    
+    // Also store in localStorage for context to work properly
+    if (!rememberMe) {
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("tenantId", data.tenant.id);
+      localStorage.setItem("tenantName", data.tenant.name);
+      localStorage.setItem("user", JSON.stringify(data.user));
+    }
 
     // Update global context state. This will trigger the useEffect hook.
     if (setTenantAndLock) setTenantAndLock(data.tenant.name);
@@ -72,6 +85,13 @@ const Login = () => {
 
   return (
     <Box maxWidth={400} mx="auto" mt={{ xs: 6, md: 10 }} px={{ xs: 2, sm: 0 }}>
+      <Button
+        startIcon={<ArrowBackIcon />}
+        onClick={() => navigate('/')}
+        sx={{ mb: 2 }}
+      >
+        Back to Home
+      </Button>
       <Typography variant="h5" mb={2}>
         Login
       </Typography>
@@ -100,19 +120,46 @@ const Login = () => {
         {loginError && (
           <Alert severity="error" sx={{ mt: 1 }}>
             {loginError}
+            {loginError.includes("Tenant not found") && (
+              <Box sx={{ mt: 1 }}>
+                <Typography variant="body2">
+                  This subdomain is not registered. Would you like to create a new account?
+                </Typography>
+              </Box>
+            )}
           </Alert>
         )}
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+            />
+          }
+          label="Keep me logged in"
+          sx={{ mt: 1 }}
+        />
         <Button
           variant="contained"
           fullWidth
           sx={{ mt: 2 }}
           onClick={handleLogin}
+          disabled={loginError.includes("Tenant not found")}
         >
           Login
         </Button>
         <Button
           fullWidth
-          sx={{ mt: 1 }}
+          sx={{ 
+            mt: 1,
+            ...(loginError.includes("Tenant not found") && {
+              variant: "contained",
+              color: "secondary",
+              fontWeight: "bold"
+            })
+          }}
+          variant={loginError.includes("Tenant not found") ? "contained" : "text"}
+          color={loginError.includes("Tenant not found") ? "secondary" : "primary"}
           onClick={() => navigate('/register')}
         >
           Create New Account

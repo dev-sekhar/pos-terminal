@@ -51,6 +51,9 @@ export const createUser = async (req: Request, res: Response, next: NextFunction
     const newUser = await userService.createUser(req.body, context);
     res.status(201).json(newUser);
   } catch (error: any) {
+    if (error.message && error.message.includes('limit exceeded')) {
+      return res.status(400).json({ message: error.message });
+    }
     next(error);
   }
 };

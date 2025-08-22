@@ -69,6 +69,24 @@ export const createOrLinkSupplier = async (data: Prisma.SupplierCreateInput, ten
   return supplier;
 };
 
+// Update a supplier (only if linked to the tenant)
+export const updateSupplier = async (supplierId: number, data: Prisma.SupplierUpdateInput, tenantId: string): Promise<Supplier | null> => {
+  // First check if supplier is linked to this tenant
+  const link = await prisma.tenantsOnSuppliers.findUnique({
+    where: { tenantId_supplierId: { tenantId, supplierId } }
+  });
+  
+  if (!link) {
+    return null; // Supplier not linked to this tenant
+  }
+
+  // Update the supplier
+  return prisma.supplier.update({
+    where: { id: supplierId },
+    data
+  });
+};
+
 // Unlink a supplier from the current tenant. This does NOT delete the global supplier record.
 export const unlinkSupplierFromTenant = async (supplierId: number, tenantId: string): Promise<void> => {
   await prisma.tenantsOnSuppliers.delete({

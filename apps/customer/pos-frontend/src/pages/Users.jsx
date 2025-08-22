@@ -22,6 +22,8 @@ import {
   Chip,
   Alert,
   CircularProgress,
+  FormControlLabel,
+  Switch,
 } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -36,6 +38,7 @@ const initialFormState = {
   password: "",
   role: "CASHIER",
   branchId: "",
+  deleted: false,
 };
 const roles = ["ADMIN", "MANAGER", "CASHIER"];
 
@@ -52,6 +55,7 @@ const Users = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [currentUser, setCurrentUser] = useState(initialFormState);
   const [formErrors, setFormErrors] = useState([]);
+  const [planLimits, setPlanLimits] = useState(null);
 
   const fetchData = useCallback(async () => {
     if (!tenant) return;
@@ -59,14 +63,18 @@ const Users = () => {
     setError("");
     try {
       // Admins need the full branch list for the dropdown. Managers don't.
-      const fetchPromises = [authenticatedFetch("/api/users")];
+      const fetchPromises = [
+        authenticatedFetch("/api/users"),
+        authenticatedFetch("/api/pricing/limits")
+      ];
       if (loggedInUser?.role === "ADMIN") {
         fetchPromises.push(authenticatedFetch("/api/branches"));
       }
 
-      const [usersData, branchesData] = await Promise.all(fetchPromises);
+      const [usersData, limitsData, branchesData] = await Promise.all(fetchPromises);
 
       setUsers(usersData || []);
+      setPlanLimits(limitsData);
       setBranches(branchesData || []); // This will be undefined for Managers, which is fine.
     } catch (err) {
       setError(err.message);
@@ -89,6 +97,7 @@ const Users = () => {
           password: "",
           role: user.role,
           branchId: user.branchId || "",
+          deleted: user.deleted || false,
         }
       : {
           ...initialFormState,
@@ -101,11 +110,33 @@ const Users = () => {
     setOpen(true);
   };
 
-  const handleClose = () => setOpen(false);
+  const handleClose = () => {
+    setOpen(false);
+    setFormErrors([]); // Clear errors when dialog is closed
+  };
   const handleChange = (e) =>
     setCurrentUser((u) => ({ ...u, [e.target.name]: e.target.value }));
 
   const handleSave = async () => {
+    // Validation: Prevent self-deactivation
+    if (isEditing && currentUser.id === loggedInUser.id && currentUser.deleted) {
+      setFormErrors(["You cannot deactivate your own account."]);
+      return;
+    }
+
+    // Validation: Ensure at least one admin remains active
+    if (isEditing && currentUser.role === "ADMIN" && currentUser.deleted) {
+      const activeAdmins = users.filter(u => 
+        u.role === "ADMIN" && 
+        !u.deleted && 
+        u.id !== currentUser.id
+      );
+      if (activeAdmins.length === 0) {
+        setFormErrors(["Cannot deactivate the last active admin user."]);
+        return;
+      }
+    }
+
     const payload = {
       ...currentUser,
       userName: loggedInUser?.name || tenant?.name || "System"
@@ -139,6 +170,14 @@ const Users = () => {
   if (loading) return <CircularProgress />;
   if (error) return <Alert severity="error">{error}</Alert>;
 
+  const isAtLimit = planLimits?.users && 
+    planLimits.users.maxAllowed !== 'unlimited' && 
+    planLimits.users.currentCount >= planLimits.users.maxAllowed;
+
+  const remaining = planLimits?.users && planLimits.users.maxAllowed !== 'unlimited' 
+    ? planLimits.users.maxAllowed - planLimits.users.currentCount 
+    : null;
+
   return (
     <Box>
       <Box
@@ -148,10 +187,25 @@ const Users = () => {
         mb={2}
       >
         <Typography variant="h4">Users</Typography>
-        <Button variant="contained" onClick={() => handleOpen()}>
+        <Button 
+          variant="contained" 
+          onClick={() => handleOpen()}
+          disabled={isAtLimit}
+        >
           Add User
         </Button>
       </Box>
+      
+      {planLimits?.users && (
+        <Alert severity={isAtLimit ? "warning" : "info"} sx={{ mb: 2 }}>
+          {planLimits.users.maxAllowed === 'unlimited' 
+            ? `User usage (${planLimits.users.currentCount}/unlimited) for ${planLimits.planName} plan.`
+            : isAtLimit 
+              ? `User limit reached (${planLimits.users.currentCount}/${planLimits.users.maxAllowed}) for ${planLimits.planName} plan. Upgrade your plan to add more users.`
+              : `User usage (${planLimits.users.currentCount}/${planLimits.users.maxAllowed}) for ${planLimits.planName} plan. You can add ${remaining} more user${remaining !== 1 ? 's' : ''}.`
+          }
+        </Alert>
+      )}
       <Paper>
         <Table>
           <TableHead>
@@ -160,6 +214,7 @@ const Users = () => {
               <TableCell>Email</TableCell>
               <TableCell>Role</TableCell>
               <TableCell>Branch</TableCell>
+              <TableCell>Status</TableCell>
               <TableCell>Actions</TableCell>
             </TableRow>
           </TableHead>
@@ -172,6 +227,13 @@ const Users = () => {
                   <Chip label={user.role} size="small" />
                 </TableCell>
                 <TableCell>{user.branch?.name || "N/A"}</TableCell>
+                <TableCell>
+                  {user.deleted ? (
+                    <Chip label="Inactive" color="default" size="small" />
+                  ) : (
+                    <Chip label="Active" color="success" size="small" />
+                  )}
+                </TableCell>
                 <TableCell>
                   <IconButton onClick={() => handleOpen(user)}>
                     <EditIcon />
@@ -261,10 +323,27 @@ const Users = () => {
               </Select>
             </FormControl>
           )}
+          
+          <FormControlLabel
+            control={
+              <Switch
+                checked={!currentUser.deleted}
+                onChange={(e) => setCurrentUser(u => ({ ...u, deleted: !e.target.checked }))}
+                name="active"
+                disabled={isEditing && currentUser.id === loggedInUser.id}
+              />
+            }
+            label={isEditing && currentUser.id === loggedInUser.id ? "Active (Cannot deactivate yourself)" : "Active"}
+            sx={{ mt: 2 }}
+          />
         </DialogContent>
         <DialogActions>
           <Button onClick={handleClose}>Cancel</Button>
-          <Button onClick={handleSave} variant="contained">
+          <Button 
+            onClick={handleSave} 
+            variant="contained"
+            disabled={formErrors.some(error => error.includes('limit exceeded'))}
+          >
             {isEditing ? "Save" : "Add"}
           </Button>
         </DialogActions>

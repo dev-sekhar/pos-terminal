@@ -21,6 +21,7 @@ import {
   Alert,
   CircularProgress,
 } from "@mui/material";
+import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { useTenant } from "../context/TenantContext";
 
@@ -42,6 +43,7 @@ const Suppliers = () => {
   const [error, setError] = useState("");
 
   const [open, setOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [currentSupplier, setCurrentSupplier] = useState(initialFormState);
 
   const [formErrors, setFormErrors] = useState([]);
@@ -66,8 +68,16 @@ const Suppliers = () => {
     if (tenant) fetchSuppliers();
   }, [tenant, fetchSuppliers]);
 
-  const handleOpen = () => {
-    setCurrentSupplier(initialFormState);
+  const handleOpen = (supplier = null) => {
+    setIsEditing(!!supplier);
+    setCurrentSupplier(supplier ? {
+      id: supplier.id,
+      name: supplier.name,
+      contact: supplier.contact || "",
+      email: supplier.email || "",
+      address: supplier.address || "",
+      active: supplier.active
+    } : initialFormState);
     setFormErrors([]);
     setOpen(true);
   };
@@ -90,9 +100,11 @@ const Suppliers = () => {
     setFormErrors([]);
 
     try {
-      // --- FIX 4: Use authenticatedFetch for saving data ---
-      await authenticatedFetch("/api/suppliers", {
-        method: "POST",
+      const method = isEditing ? "PUT" : "POST";
+      const url = isEditing ? `/api/suppliers/${currentSupplier.id}` : "/api/suppliers";
+      
+      await authenticatedFetch(url, {
+        method,
         body: JSON.stringify(currentSupplier),
       });
       handleClose();
@@ -159,6 +171,9 @@ const Suppliers = () => {
                   )}
                 </TableCell>
                 <TableCell>
+                  <IconButton onClick={() => handleOpen(s)} title="Edit Supplier">
+                    <EditIcon />
+                  </IconButton>
                   <IconButton
                     onClick={() => handleDelete(s.id)}
                     color="error"
@@ -174,7 +189,7 @@ const Suppliers = () => {
       </Paper>
 
       <Dialog open={open} onClose={handleClose}>
-        <DialogTitle>Add Supplier</DialogTitle>
+        <DialogTitle>{isEditing ? "Edit Supplier" : "Add Supplier"}</DialogTitle>
         <DialogContent>
           {formErrors.length > 0 && (
             <Alert severity="error" sx={{ mb: 2 }}>
@@ -228,7 +243,7 @@ const Suppliers = () => {
         <DialogActions>
           <Button onClick={handleClose}>Cancel</Button>
           <Button onClick={handleSave} variant="contained">
-            Add Supplier
+            {isEditing ? "Save" : "Add Supplier"}
           </Button>
         </DialogActions>
       </Dialog>

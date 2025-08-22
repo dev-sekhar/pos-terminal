@@ -25,6 +25,8 @@ import registerTenantRoutes from './routes/registerTenant';
 import validateTenantRoutes from './routes/validateTenant';
 import dashboardRoutes from './routes/dashboard';
 import settingsRoutes from './routes/settings';
+import pricingRoutes from './routes/pricing';
+import reportsRoutes from './routes/reports';
 import authMiddleware from './middleware/authMiddleware';
 import tenantMiddleware from './middleware/tenantMiddleware';
 
@@ -60,6 +62,20 @@ app.use((req, res, next) => {
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 app.use('/api/auth', authRoutes);
 app.use('/api/register-tenant', registerTenantRoutes);
+// Only the public pricing endpoint (list plans)
+app.get('/api/pricing', async (req, res) => {
+  try {
+    const prisma = new PrismaClient();
+    const plans = await prisma.pricingPlan.findMany({
+      where: { active: true },
+      orderBy: { id: 'asc' }
+    });
+    await prisma.$disconnect();
+    res.json(plans);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch pricing plans' });
+  }
+});
 app.use('/api', validateTenantRoutes);
 
 // --- PROTECTED ROUTES (Auth Required) ---
@@ -76,6 +92,9 @@ app.use('/api/purchases', protectedMiddleware, purchaseRoutes);
 app.use('/api/tenants', protectedMiddleware, tenantsRoutes);
 app.use('/api/dashboard', protectedMiddleware, dashboardRoutes);
 app.use('/api/settings', protectedMiddleware, settingsRoutes);
+app.use('/api/reports', protectedMiddleware, reportsRoutes);
+// Protected pricing endpoints (limits)
+app.use('/api/pricing', protectedMiddleware, pricingRoutes);
 
 // --- GLOBAL ERROR HANDLER (must be last) ---
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {

@@ -1,4 +1,5 @@
 import { PrismaClient, Prisma, User, Role, Branch } from '@prisma/client';
+import { PricingPlanEnforcer } from './planLimitService';
 
 const prisma = new PrismaClient();
 
@@ -24,6 +25,10 @@ export const createBranch = async (data: Prisma.BranchUncheckedCreateInput, requ
   if (requestingUser.role !== Role.ADMIN) {
     throw new Error('Forbidden: Only Administrators can create new branches.');
   }
+  
+  // Check plan limits before creating branch
+  await PricingPlanEnforcer.enforceLimit(requestingUser.tenantId, 'branches');
+  
   const { name, tag, location, active } = data;
   return prisma.branch.create({
     data: {

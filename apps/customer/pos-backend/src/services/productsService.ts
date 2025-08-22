@@ -1,6 +1,7 @@
 import { PrismaClient, Prisma, Product } from '@prisma/client';
 import { UserContextPayload } from '../types/custom';
 import prisma from '../lib/prisma'; // Use the shared prisma client
+import { PricingPlanEnforcer } from './planLimitService';
 
 // --- THIS IS THE CORRECTED listProducts FUNCTION ---
 // Products are tenant-level entities. Managers and Admins should see all products
@@ -20,6 +21,9 @@ export const listProducts = async (requestingUser: UserContextPayload): Promise<
 };
 
 export const createProduct = async (data: Prisma.ProductUncheckedCreateInput, requestingUser: UserContextPayload): Promise<Product> => {
+  // Check plan limits before creating product
+  await PricingPlanEnforcer.enforceLimit(requestingUser.tenantId, 'products');
+  
   const { name, code, unit, price, productCategoryId } = data;
   const numericPrice = parseFloat(String(price));
   if (isNaN(numericPrice)) throw new Error("Invalid price.");
@@ -109,6 +113,20 @@ export const generateNewProductCode = async (requestingUser: UserContextPayload)
 };
 
 export const importProductsFromCSV = async (products: Prisma.ProductUncheckedCreateInput[], requestingUser: UserContextPayload) => {
+    // Check if importing these products would exceed plan limits
+    const currentCount = await prisma.product.count({ 
+      where: { tenantId: requestingUser.tenantId, deleted: false } 
+    });
+    const planResult = await PricingPlanEnforcer.checkLimit(requestingUser.tenantId, 'products');
+    
+    if (planResult.maxAllowed !== 'unlimited' && 
+        currentCount + products.length > planResult.maxAllowed) {
+      throw new Error(
+        `Cannot import ${products.length} products. ` +
+        `Current: ${currentCount}, Max allowed: ${planResult.maxAllowed} (${planResult.planName} plan)`
+      );
+    }
+    
     const today = new Date();
     const datePart = today.toISOString().slice(0, 10).replace(/-/g, '');
     const prefix = `P${datePart}-`;
