@@ -22,6 +22,7 @@ import supplierRoutes from './routes/suppliers';
 import purchaseRoutes from './routes/purchases';
 import tenantsRoutes from './routes/tenants';
 import registerTenantRoutes from './routes/registerTenant';
+import validateTenantRoutes from './routes/validateTenant';
 import dashboardRoutes from './routes/dashboard';
 import settingsRoutes from './routes/settings';
 import authMiddleware from './middleware/authMiddleware';
@@ -39,7 +40,7 @@ app.use(cors({
     if (!origin) return callback(null, true);
     
     // Allow localhost and lvh.me subdomains
-    if (origin.match(/^http:\/\/(.*\.)?lvh\.me:8080$/) || 
+    if (origin.match(/^http:\/\/(.*\.)?lvh\.me:(3000|8080)$/) || 
         origin.match(/^http:\/\/localhost:(3000|8080)$/)) {
       return callback(null, true);
     }
@@ -59,6 +60,7 @@ app.use((req, res, next) => {
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 app.use('/api/auth', authRoutes);
 app.use('/api/register-tenant', registerTenantRoutes);
+app.use('/api', validateTenantRoutes);
 
 // --- PROTECTED ROUTES (Auth Required) ---
 const protectedMiddleware = [authMiddleware, tenantMiddleware];

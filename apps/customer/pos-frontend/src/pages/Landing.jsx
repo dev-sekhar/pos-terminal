@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   AppBar,
   Toolbar,
@@ -15,11 +15,25 @@ import {
   TableHead,
   TableRow,
   Chip,
+  TextField,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 
 const Landing = () => {
   const navigate = useNavigate();
+  const [loginDialog, setLoginDialog] = useState(false);
+  const [domain, setDomain] = useState('');
+
+
+  const handleLogin = () => {
+    if (!domain.trim()) return;
+    setLoginDialog(false);
+    window.location.href = `http://${domain}.lvh.me:3000/login`;
+  };
 
   const pricingTiers = [
     {
@@ -56,7 +70,7 @@ const Landing = () => {
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
             POS Terminal
           </Typography>
-          <Button color="inherit" onClick={() => navigate('/login')}>
+          <Button color="inherit" onClick={() => setLoginDialog(true)}>
             Login
           </Button>
           <Button color="inherit" onClick={() => navigate('/register')} sx={{ ml: 1 }}>
@@ -228,6 +242,40 @@ const Landing = () => {
           </Typography>
         </Container>
       </Box>
+
+      {/* Login Dialog */}
+      <Dialog open={loginDialog} onClose={() => {
+        setLoginDialog(false);
+        setDomain('');
+      }} maxWidth="sm" fullWidth>
+        <DialogTitle>Login to Your Account</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Enter your company domain to access your POS system
+          </Typography>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Company Domain"
+            placeholder="yourcompany"
+            fullWidth
+            variant="outlined"
+            value={domain}
+            onChange={(e) => setDomain(e.target.value)}
+            helperText="This will redirect you to yourcompany.lvh.me:3000"
+            onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            setLoginDialog(false);
+            setDomain('');
+          }}>Cancel</Button>
+          <Button onClick={handleLogin} variant="contained" disabled={!domain.trim()}>
+            Continue to Login
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

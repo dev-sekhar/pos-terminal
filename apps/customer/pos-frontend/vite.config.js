@@ -3,16 +3,17 @@ import react from "@vitejs/plugin-react";
 import path from "path";
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, path.resolve(__dirname, '../../../'), '');
+  const env = loadEnv(mode, process.cwd(), '');
+  const globalEnv = loadEnv(mode, path.resolve(__dirname, '../../../'), '');
   return {
   plugins: [react()],
   server: {
-    host: "127.0.0.1",
-    port: 5173,
-    allowedHosts: [".lvh.me", "lvh.me"],
+    host: "0.0.0.0",
+    port: parseInt(env.VITE_PORT) || 3000,
+    allowedHosts: ["lvh.me", ".lvh.me", "localhost", "127.0.0.1"],
     proxy: {
       "/api": {
-        target: "http://127.0.0.1:3000",
+        target: `http://127.0.0.1:${env.VITE_BACKEND_PORT || 5000}`,
         changeOrigin: true,
         // --- ADD THIS LOGGING BLOCK ---
         configure: (proxy, options) => {
@@ -39,7 +40,7 @@ export default defineConfig(({ mode }) => {
     },
   },
   define: {
-    'import.meta.env.VITE_APP_NAME': JSON.stringify(env.VITE_APP_NAME)
+    'import.meta.env.VITE_APP_NAME': JSON.stringify(globalEnv.VITE_APP_NAME)
   }
 };
 });

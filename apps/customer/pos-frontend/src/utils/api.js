@@ -7,7 +7,7 @@ export const authenticatedFetch = async (url, options = {}) => {
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
-  const fullUrl = `http://lvh.me:8080${url}`;
+  const fullUrl = url;
 
   const response = await fetch(fullUrl, {
     ...options,
