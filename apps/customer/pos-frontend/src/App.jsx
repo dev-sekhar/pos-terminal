@@ -6,7 +6,9 @@ import { PERMISSIONS } from "@pos-terminal/permissions"; // 1. Import the PERMIS
 
 // Import your pages and layouts
 import MainLayout from "./layout/MainLayout";
+import Landing from "./pages/Landing";
 import Login from "./pages/Login";
+import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import Branches from "./pages/Branches";
 import ProductCategories from "./pages/ProductCategories";
@@ -43,11 +45,13 @@ const AuthWrapper = () => {
 function App() {
   return (
     <Routes>
+      <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
 
       <Route element={<AuthWrapper />}>
-        <Route path="/" element={<MainLayout />}>
-          <Route index element={<Navigate to="/dashboard" />} />
+        <Route path="/app" element={<MainLayout />}>
+          <Route index element={<Navigate to="/app/dashboard" />} />
 
           {/* --- 3. APPLY PERMISSION-BASED ROUTING --- */}
 
@@ -142,7 +146,7 @@ function App() {
         </Route>
       </Route>
 
-      <Route path="*" element={<Navigate to="/dashboard" />} />
+      <Route path="*" element={<Navigate to="/" />} />
     </Routes>
   );
 }

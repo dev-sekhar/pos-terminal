@@ -30,13 +30,13 @@ import { getUserPermissions, PERMISSIONS } from "@pos-terminal/permissions";
 const navItems = [
   {
     text: "Dashboard",
-    path: "/dashboard",
+    path: "/app/dashboard",
     icon: <DashboardIcon />,
     permission: PERMISSIONS.VIEW_DASHBOARD,
   },
   {
     text: "Sales",
-    path: "/sales",
+    path: "/app/sales",
     icon: <SalesIcon />,
     permission: PERMISSIONS.CREATE_SALES,
   },
@@ -47,13 +47,13 @@ const navItems = [
     subItems: [
       {
         text: "All Products",
-        path: "/products",
+        path: "/app/products",
         icon: <InventoryIcon />,
         permission: PERMISSIONS.MANAGE_PRODUCTS,
       },
       {
         text: "Categories",
-        path: "/product-categories",
+        path: "/app/product-categories",
         icon: <CategoryIcon />,
         permission: PERMISSIONS.MANAGE_CATEGORIES,
       },
@@ -61,37 +61,37 @@ const navItems = [
   },
   {
     text: "Inventory",
-    path: "/inventory",
+    path: "/app/inventory",
     icon: <InventoryIcon />,
     permission: PERMISSIONS.MANAGE_INVENTORY,
   },
   {
     text: "Purchases",
-    path: "/purchases",
+    path: "/app/purchases",
     icon: <PurchasesIcon />,
     permission: PERMISSIONS.MANAGE_PURCHASES,
   },
   {
     text: "Suppliers",
-    path: "/suppliers",
+    path: "/app/suppliers",
     icon: <SupplierIcon />,
     permission: PERMISSIONS.MANAGE_SUPPLIERS,
   },
   {
     text: "Reports",
-    path: "/reports",
+    path: "/app/reports",
     icon: <ReportsIcon />,
     permission: PERMISSIONS.VIEW_REPORTS,
   },
   {
     text: "Users",
-    path: "/users",
+    path: "/app/users",
     icon: <UserIcon />,
     permission: PERMISSIONS.MANAGE_USERS,
   },
   {
     text: "Branches",
-    path: "/branches",
+    path: "/app/branches",
     icon: <BranchIcon />,
     permission: PERMISSIONS.MANAGE_BRANCHES,
   },

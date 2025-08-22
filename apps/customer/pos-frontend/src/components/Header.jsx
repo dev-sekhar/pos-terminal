@@ -59,7 +59,7 @@ const Header = () => {
               <IconButton
                 color="inherit"
                 sx={{ ml: 1 }}
-                onClick={() => navigate("/settings")}
+                onClick={() => navigate("/app/settings")}
               >
                 <SettingsIcon />
               </IconButton>
