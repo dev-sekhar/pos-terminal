@@ -15,7 +15,7 @@ export const UserProvider = ({ children }) => {
     console.log("Clearing session and logging out.");
     localStorage.clear();
     setUser(null);
-    navigate("/");
+    window.location.href = 'http://lvh.me:3000/';
   };
 
   useEffect(() => {

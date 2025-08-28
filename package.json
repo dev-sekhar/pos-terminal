@@ -23,8 +23,25 @@
     "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.6",
     "@types/node": "^20.12.7",
+    "concurrently": "^8.2.2",
     "prisma": "^6.6.0",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.4.5"
+  },
+  "scripts": {
+    "build:packages": "yarn workspace @pos-terminal/schemas build && yarn workspace @pos-terminal/permissions build",
+    "dev:packages": "yarn workspace @pos-terminal/schemas dev && yarn workspace @pos-terminal/permissions dev",
+    
+    "dev:pos-backend": "yarn workspace @pos-terminal/backend dev",
+    "dev:pos-frontend": "yarn workspace @pos-terminal/pos-frontend dev",
+    "dev:admin-backend": "yarn workspace @pos-terminal/admin-backend dev",
+    "dev:admin-frontend": "yarn workspace @pos-terminal/admin-frontend dev",
+    "dev:landing": "yarn workspace @pos-terminal/landing-frontend dev",
+    
+    "dev:customer": "concurrently \"yarn dev:pos-backend\" \"yarn dev:pos-frontend\"",
+    "dev:admin": "concurrently \"yarn dev:admin-backend\" \"yarn dev:admin-frontend\"",
+    "dev:all": "concurrently \"yarn dev:customer\" \"yarn dev:admin\" \"yarn dev:landing\"",
+    
+    "build": "yarn build:packages && yarn workspace @pos-terminal/backend build"
   }
 }

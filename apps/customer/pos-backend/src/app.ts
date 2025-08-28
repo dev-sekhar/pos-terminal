@@ -27,6 +27,7 @@ import dashboardRoutes from './routes/dashboard';
 import settingsRoutes from './routes/settings';
 import pricingRoutes from './routes/pricing';
 import reportsRoutes from './routes/reports';
+import billingRoutes from './routes/billing';
 import authMiddleware from './middleware/authMiddleware';
 import tenantMiddleware from './middleware/tenantMiddleware';
 
@@ -93,6 +94,7 @@ app.use('/api/tenants', protectedMiddleware, tenantsRoutes);
 app.use('/api/dashboard', protectedMiddleware, dashboardRoutes);
 app.use('/api/settings', protectedMiddleware, settingsRoutes);
 app.use('/api/reports', protectedMiddleware, reportsRoutes);
+app.use('/api/billing', protectedMiddleware, billingRoutes);
 // Protected pricing endpoints (limits)
 app.use('/api/pricing', protectedMiddleware, pricingRoutes);
 

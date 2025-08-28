@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   AppBar,
   Toolbar,
@@ -22,19 +22,19 @@ import {
   DialogActions,
   FormControlLabel,
   Checkbox,
-} from '@mui/material';
-import { useNavigate } from 'react-router-dom';
+} from "@mui/material";
+import { useNavigate } from "react-router-dom";
 
 const Landing = () => {
   const navigate = useNavigate();
   const [loginDialog, setLoginDialog] = useState(false);
-  const [domain, setDomain] = useState('');
+  const [domain, setDomain] = useState("");
   const [rememberDomain, setRememberDomain] = useState(false);
   const [pricingTiers, setPricingTiers] = useState([]);
 
   // Load saved domain preference
   useEffect(() => {
-    const savedDomain = localStorage.getItem('preferredDomain');
+    const savedDomain = localStorage.getItem("preferredDomain");
     if (savedDomain) {
       setDomain(savedDomain);
       setRememberDomain(true);
@@ -45,62 +45,40 @@ const Landing = () => {
   useEffect(() => {
     const fetchPricingPlans = async () => {
       try {
-        const response = await fetch('/api/pricing');
+        const response = await fetch("/api/pricing");
         if (response.ok) {
           const plans = await response.json();
+          const sortOrder = [
+            "Free (first 3 months)",
+            "Basic",
+            "Premium",
+            "Enterprise",
+          ];
+          plans.sort(
+            (a, b) => sortOrder.indexOf(a.name) - sortOrder.indexOf(b.name)
+          );
           setPricingTiers(plans);
         }
       } catch (error) {
-        console.error('Failed to fetch pricing plans:', error);
+        console.error("Failed to fetch pricing plans:", error);
       }
     };
     fetchPricingPlans();
   }, []);
 
-
   const handleLogin = () => {
     if (!domain.trim()) return;
-    
+
     // Save domain preference if remember is checked
     if (rememberDomain) {
-      localStorage.setItem('preferredDomain', domain);
+      localStorage.setItem("preferredDomain", domain);
     }
-    
+
     setLoginDialog(false);
     window.location.href = `http://${domain}.lvh.me:3000/login`;
   };
 
-  const defaultPricingTiers = [
-    {
-      name: 'Basic',
-      price: '$29/month',
-      maxUsers: '5 Users',
-      maxBranches: '5 Branches',
-      maxProducts: '50 Products',
-      features: ['Basic Dashboard', 'Sales Management', 'Inventory Tracking', 'Email Support']
-    },
-    {
-      name: 'Premium',
-      price: '$79/month',
-      maxUsers: '15 Users',
-      maxBranches: '20 Branches',
-      maxProducts: '200 Products',
-      features: ['Advanced Dashboard', 'Multi-branch Management', 'Advanced Reports', 'Priority Support']
-    },
-    {
-      name: 'Enterprise',
-      price: 'Contact Us',
-      maxUsers: 'Unlimited',
-      maxBranches: 'Unlimited',
-      maxProducts: 'Unlimited',
-      features: ['Custom Features', 'Dedicated Support', 'API Access', 'Custom Integrations']
-    }
-  ];
-
-  const displayTiers = pricingTiers.length > 0 ? pricingTiers.map(tier => ({
-    ...tier,
-    features: defaultPricingTiers.find(dt => dt.name === tier.name)?.features || []
-  })) : defaultPricingTiers;
+  const displayTiers = pricingTiers;
 
   return (
     <Box>
@@ -110,10 +88,26 @@ const Landing = () => {
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
             {import.meta.env.VITE_APP_NAME || "POS Terminal"}
           </Typography>
-          <Button color="inherit" onClick={() => setLoginDialog(true)}>
+          <Button
+            color="inherit"
+            onClick={() =>
+              (window.location.href = "http://localhost:3001/login")
+            }
+          >
+            Employee
+          </Button>
+          <Button
+            color="inherit"
+            onClick={() => setLoginDialog(true)}
+            sx={{ ml: 1 }}
+          >
             Login
           </Button>
-          <Button color="inherit" onClick={() => navigate('/register')} sx={{ ml: 1 }}>
+          <Button
+            color="inherit"
+            onClick={() => navigate("/register")}
+            sx={{ ml: 1 }}
+          >
             Register
           </Button>
         </Toolbar>
@@ -122,31 +116,32 @@ const Landing = () => {
       {/* Hero Section */}
       <Box
         sx={{
-          background: 'linear-gradient(135deg, #1976d2 0%, #42a5f5 100%)',
-          color: 'white',
+          background: "linear-gradient(135deg, #1976d2 0%, #42a5f5 100%)",
+          color: "white",
           py: 12,
-          textAlign: 'center'
+          textAlign: "center",
         }}
       >
         <Container maxWidth="md">
           <Typography variant="h2" component="h1" gutterBottom>
-            Modern {import.meta.env.VITE_APP_NAME || "POS Terminal"} Solution
+            {/* Modern {import.meta.env.VITE_APP_NAME || "POS Terminal"} Solution */}
+            Transform the Way You Sell
           </Typography>
           <Typography variant="h5" sx={{ mb: 4, opacity: 0.9 }}>
-            Streamline your business operations with our comprehensive point-of-sale system
+            Unlock efficiency and insights with our next‑generation POS platform
           </Typography>
           <Button
             variant="contained"
             size="large"
             sx={{
-              bgcolor: 'white',
-              color: 'primary.main',
+              bgcolor: "white",
+              color: "primary.main",
               px: 4,
               py: 1.5,
-              fontSize: '1.1rem',
-              '&:hover': { bgcolor: 'grey.100' }
+              fontSize: "1.1rem",
+              "&:hover": { bgcolor: "grey.100" },
             }}
-            onClick={() => navigate('/register')}
+            onClick={() => navigate("/register")}
           >
             Get Started Today
           </Button>
@@ -158,38 +153,52 @@ const Landing = () => {
         <Typography variant="h3" component="h2" textAlign="center" gutterBottom>
           About Our Company
         </Typography>
-        <Typography variant="h6" textAlign="center" color="text.secondary" sx={{ mb: 6 }}>
-          Empowering businesses with cutting-edge technology
+        <Typography
+          variant="h6"
+          textAlign="center"
+          color="text.secondary"
+          sx={{ mb: 6 }}
+        >
+          We empower businesses with cutting‑edge technology through our
+          next‑generation POS platform that streamlines sales, simplifies
+          inventory management, and drives growth. Built for modern retailers
+          and service providers, our solution combines speed, security, and
+          scalability—helping you run smarter operations and stay ahead of the
+          competition. Get started today and see how technology can transform
+          your business.
         </Typography>
-        
+
         <Grid container spacing={4}>
           <Grid item xs={12} md={4}>
-            <Paper sx={{ p: 3, textAlign: 'center', height: '100%' }}>
+            <Paper sx={{ p: 3, textAlign: "center", height: "100%" }}>
               <Typography variant="h5" gutterBottom color="primary">
                 🚀 Innovation
               </Typography>
               <Typography>
-                We leverage the latest technology to provide you with a modern, efficient POS system that grows with your business.
+                We leverage the latest technology to provide you with a modern,
+                efficient POS system that grows with your business.
               </Typography>
             </Paper>
           </Grid>
           <Grid item xs={12} md={4}>
-            <Paper sx={{ p: 3, textAlign: 'center', height: '100%' }}>
+            <Paper sx={{ p: 3, textAlign: "center", height: "100%" }}>
               <Typography variant="h5" gutterBottom color="primary">
                 🛡️ Reliability
               </Typography>
               <Typography>
-                Our robust infrastructure ensures your business operations run smoothly 24/7 with minimal downtime.
+                Our robust infrastructure ensures your business operations run
+                smoothly 24/7 with minimal downtime.
               </Typography>
             </Paper>
           </Grid>
           <Grid item xs={12} md={4}>
-            <Paper sx={{ p: 3, textAlign: 'center', height: '100%' }}>
+            <Paper sx={{ p: 3, textAlign: "center", height: "100%" }}>
               <Typography variant="h5" gutterBottom color="primary">
                 📞 Support
               </Typography>
               <Typography>
-                Get dedicated support from our expert team to help you maximize your business potential.
+                Get dedicated support from our expert team to help you maximize
+                your business potential.
               </Typography>
             </Paper>
           </Grid>
@@ -197,12 +206,22 @@ const Landing = () => {
       </Container>
 
       {/* Pricing Section */}
-      <Box sx={{ bgcolor: 'grey.50', py: 8 }}>
+      <Box sx={{ bgcolor: "grey.50", py: 8 }}>
         <Container maxWidth="lg">
-          <Typography variant="h3" component="h2" textAlign="center" gutterBottom>
+          <Typography
+            variant="h3"
+            component="h2"
+            textAlign="center"
+            gutterBottom
+          >
             Choose Your Plan
           </Typography>
-          <Typography variant="h6" textAlign="center" color="text.secondary" sx={{ mb: 6 }}>
+          <Typography
+            variant="h6"
+            textAlign="center"
+            color="text.secondary"
+            sx={{ mb: 6 }}
+          >
             Select the perfect plan for your business needs
           </Typography>
 
@@ -210,46 +229,75 @@ const Landing = () => {
             <Table>
               <TableHead>
                 <TableRow>
-                  <TableCell><Typography variant="h6">Features</Typography></TableCell>
+                  <TableCell>
+                    <Typography variant="h6">Features</Typography>
+                  </TableCell>
                   {displayTiers.map((tier) => (
                     <TableCell key={tier.name} align="center">
-                      <Typography variant="h6" color="primary">{tier.name}</Typography>
-                      <Typography variant="h5" sx={{ mt: 1 }}>{tier.price}</Typography>
+                      <Typography variant="h6" color="primary">
+                        {tier.name}
+                      </Typography>
+                      <Typography variant="h5" sx={{ mt: 1 }}>
+                        {tier.price}
+                      </Typography>
                     </TableCell>
                   ))}
                 </TableRow>
               </TableHead>
               <TableBody>
                 <TableRow>
-                  <TableCell><strong>Max Users</strong></TableCell>
+                  <TableCell>
+                    <strong>Max Users</strong>
+                  </TableCell>
                   {displayTiers.map((tier) => (
                     <TableCell key={tier.name} align="center">
-                      <Chip label={tier.maxUsers} color={tier.name === 'Enterprise' ? 'success' : 'default'} />
+                      <Chip
+                        label={tier.maxUsers}
+                        color={
+                          tier.name === "Enterprise" ? "success" : "default"
+                        }
+                      />
                     </TableCell>
                   ))}
                 </TableRow>
                 <TableRow>
-                  <TableCell><strong>Max Branches</strong></TableCell>
+                  <TableCell>
+                    <strong>Max Branches</strong>
+                  </TableCell>
                   {displayTiers.map((tier) => (
                     <TableCell key={tier.name} align="center">
-                      <Chip label={tier.maxBranches} color={tier.name === 'Enterprise' ? 'success' : 'default'} />
+                      <Chip
+                        label={tier.maxBranches}
+                        color={
+                          tier.name === "Enterprise" ? "success" : "default"
+                        }
+                      />
                     </TableCell>
                   ))}
                 </TableRow>
                 <TableRow>
-                  <TableCell><strong>Max Products</strong></TableCell>
+                  <TableCell>
+                    <strong>Max Products</strong>
+                  </TableCell>
                   {displayTiers.map((tier) => (
                     <TableCell key={tier.name} align="center">
-                      <Chip label={tier.maxProducts} color={tier.name === 'Enterprise' ? 'success' : 'default'} />
+                      <Chip
+                        label={tier.maxProducts}
+                        color={
+                          tier.name === "Enterprise" ? "success" : "default"
+                        }
+                      />
                     </TableCell>
                   ))}
                 </TableRow>
                 {displayTiers[0]?.features?.map((feature, index) => (
                   <TableRow key={feature}>
-                    <TableCell><strong>{feature}</strong></TableCell>
+                    <TableCell>
+                      <strong>{feature}</strong>
+                    </TableCell>
                     {displayTiers.map((tier) => (
                       <TableCell key={tier.name} align="center">
-                        {tier.features?.[index] ? '✅' : '❌'}
+                        {tier.features?.[index] ? "✅" : "❌"}
                       </TableCell>
                     ))}
                   </TableRow>
@@ -259,11 +307,15 @@ const Landing = () => {
                   {displayTiers.map((tier) => (
                     <TableCell key={tier.name} align="center">
                       <Button
-                        variant={tier.name === 'Premium' ? 'contained' : 'outlined'}
-                        onClick={() => navigate('/register')}
+                        variant={
+                          tier.name === "Premium" ? "contained" : "outlined"
+                        }
+                        onClick={() => navigate("/register")}
                         sx={{ mt: 2 }}
                       >
-                        {tier.name === 'Enterprise' ? 'Contact Sales' : 'Get Started'}
+                        {tier.name === "Enterprise"
+                          ? "Contact Sales"
+                          : "Get Started"}
                       </Button>
                     </TableCell>
                   ))}
@@ -275,19 +327,32 @@ const Landing = () => {
       </Box>
 
       {/* Footer */}
-      <Box sx={{ bgcolor: 'primary.main', color: 'white', py: 4, textAlign: 'center' }}>
+      <Box
+        sx={{
+          bgcolor: "primary.main",
+          color: "white",
+          py: 4,
+          textAlign: "center",
+        }}
+      >
         <Container>
           <Typography variant="body1">
-            © 2024 {import.meta.env.VITE_APP_NAME || "POS Terminal"}. All rights reserved.
+            © 2024 {import.meta.env.VITE_APP_NAME || "POS Terminal"}. All rights
+            reserved.
           </Typography>
         </Container>
       </Box>
 
       {/* Login Dialog */}
-      <Dialog open={loginDialog} onClose={() => {
-        setLoginDialog(false);
-        setDomain('');
-      }} maxWidth="sm" fullWidth>
+      <Dialog
+        open={loginDialog}
+        onClose={() => {
+          setLoginDialog(false);
+          setDomain("");
+        }}
+        maxWidth="sm"
+        fullWidth
+      >
         <DialogTitle>Login to Your Account</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
@@ -303,7 +368,7 @@ const Landing = () => {
             value={domain}
             onChange={(e) => setDomain(e.target.value)}
             helperText="This will redirect you to yourcompany.lvh.me:3000"
-            onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
+            onKeyPress={(e) => e.key === "Enter" && handleLogin()}
           />
           <FormControlLabel
             control={
@@ -317,11 +382,19 @@ const Landing = () => {
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => {
-            setLoginDialog(false);
-            setDomain('');
-          }}>Cancel</Button>
-          <Button onClick={handleLogin} variant="contained" disabled={!domain.trim()}>
+          <Button
+            onClick={() => {
+              setLoginDialog(false);
+              setDomain("");
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleLogin}
+            variant="contained"
+            disabled={!domain.trim()}
+          >
             Continue to Login
           </Button>
         </DialogActions>

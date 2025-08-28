@@ -1,19 +1,12 @@
 {
-  "name": "pos-backend",
+  "name": "@pos-terminal/backend",
   "version": "1.0.0",
-  "description": "",
-  "main": "dist/app.js",
+  "private": true,
   "scripts": {
-    "dev": "npx nodemon src/app.ts",
-    "build": "tsc",
-    "start": "node dist/app.js",
-    "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate dev",
-    "db:studio": "prisma studio"
+    "dev": "npx ts-node-dev --respawn --transpile-only src/app.ts",
+    "build": "npx tsc",
+    "start": "node dist/app.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
     "@pos-terminal/permissions": "1.0.0",
     "@pos-terminal/schemas": "1.0.0",
@@ -31,12 +24,9 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
-    "@types/express-list-endpoints": "^6.0.3",
     "@types/jsonwebtoken": "^9.0.6",
     "@types/node": "^20.12.7",
-    "nodemon": "^3.1.0",
     "prisma": "^6.6.0",
-    "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.4.5"
   }

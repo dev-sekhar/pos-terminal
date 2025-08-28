@@ -41,6 +41,7 @@ app.get('/', (req, res) => {
     <nav class="navbar">
         <h2>POS Terminal</h2>
         <div>
+            <a href="#employee" class="btn" style="margin-right: 1rem;">Employee</a>
             <a href="http://lvh.me:3000/login" class="btn" style="margin-right: 1rem;">Login</a>
             <a href="http://lvh.me:3000/register" class="btn">Register</a>
         </div>

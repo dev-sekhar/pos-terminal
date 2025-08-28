@@ -23,6 +23,7 @@ import Suppliers from "./pages/Suppliers";
 import Users from "./pages/Users";
 import Settings from "./pages/Settings";
 import Reports from "./pages/Reports";
+import Billing from "./pages/Billing";
 import ProtectedRoute from "./components/ProtectedRoute"; // 2. Import our new component
 
 const AuthWrapper = () => {
@@ -142,6 +143,13 @@ function App() {
             }
           >
             <Route path="settings" element={<Settings />} />
+          </Route>
+          <Route
+            element={
+              <ProtectedRoute requiredPermission={PERMISSIONS.MANAGE_SETTINGS} />
+            }
+          >
+            <Route path="billing" element={<Billing />} />
           </Route>
         </Route>
       </Route>

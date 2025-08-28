@@ -29,11 +29,7 @@ const Register = () => {
   const [registerError, setRegisterError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (user) {
-      navigate('/app/dashboard');
-    }
-  }, [user, navigate]);
+  
 
   const handleAuthSuccess = (data) => {
     localStorage.setItem('token', data.token);
@@ -43,6 +39,9 @@ const Register = () => {
 
     if (setTenantAndLock) setTenantAndLock(data.tenant.name);
     setUser(data.user);
+
+    // Redirect to the new tenant's subdomain
+    window.location.href = `http://${data.tenant.subdomain}.lvh.me:3000/app/dashboard`;
   };
 
   const handleRegister = async () => {

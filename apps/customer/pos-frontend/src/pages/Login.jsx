@@ -160,7 +160,7 @@ const Login = () => {
           }}
           variant={loginError.includes("Tenant not found") ? "contained" : "text"}
           color={loginError.includes("Tenant not found") ? "secondary" : "primary"}
-          onClick={() => navigate('/register')}
+          onClick={() => window.location.href = 'http://lvh.me:3000/register'}
         >
           Create New Account
         </Button>

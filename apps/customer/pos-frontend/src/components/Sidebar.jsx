@@ -21,6 +21,7 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import BranchIcon from "@mui/icons-material/Store";
 import CategoryIcon from "@mui/icons-material/Category";
+import ReceiptIcon from "@mui/icons-material/Receipt";
 import { useUser } from "../context/UserContext";
 
 // --- 1. IMPORT THE TOOLS FROM OUR SINGLE SOURCE OF TRUTH ---
@@ -94,6 +95,18 @@ const navItems = [
     path: "/app/branches",
     icon: <BranchIcon />,
     permission: PERMISSIONS.MANAGE_BRANCHES,
+  },
+  {
+    text: "Settings",
+    path: "/app/settings",
+    icon: <SettingsIcon />,
+    permission: PERMISSIONS.MANAGE_SETTINGS,
+  },
+  {
+    text: "Billing",
+    path: "/app/billing",
+    icon: <ReceiptIcon />,
+    permission: PERMISSIONS.MANAGE_SETTINGS,
   },
 
 ];

@@ -21,6 +21,42 @@ export const login = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Tenant not found.' });
     }
     
+    if (!tenant.active) {
+      return res.status(403).json({ message: 'Account suspended. Please contact support.' });
+    }
+
+    // Check for overdue payments and grace period
+    const overdueInvoices = await prisma.invoice.findMany({
+      where: {
+        tenantId: tenant.id,
+        status: { in: ['PENDING', 'OVERDUE'] },
+        dueDate: { lt: new Date() }
+      },
+      include: { payments: true }
+    });
+
+    if (overdueInvoices.length > 0) {
+      const settings = await prisma.systemSettings.findFirst();
+      const graceDays = settings?.paymentGraceDays || 7;
+      
+      const oldestOverdue = overdueInvoices.reduce((oldest, invoice) => 
+        invoice.dueDate < oldest.dueDate ? invoice : oldest
+      );
+      
+      const daysPastDue = Math.floor(
+        (new Date().getTime() - new Date(oldestOverdue.dueDate).getTime()) / (1000 * 60 * 60 * 24)
+      );
+      
+      if (daysPastDue > graceDays) {
+        // Auto-deactivate tenant
+        await prisma.tenant.update({
+          where: { id: tenant.id },
+          data: { active: false }
+        });
+        return res.status(403).json({ message: 'Account suspended due to overdue payments. Please contact support.' });
+      }
+    }
+    
     // In our schema, the User's tenantId is a string, matching the Tenant's ID type.
     const user = await prisma.user.findFirst({ 
       where: { tenantId: tenant.id, email } 
@@ -46,10 +82,36 @@ export const login = async (req: Request, res: Response) => {
 
     const { password: _, ...userResponse } = user;
 
+    // Check for payment alerts
+    let paymentAlert = null;
+    if (overdueInvoices.length > 0) {
+      const totalOverdue = overdueInvoices.reduce((sum, invoice) => {
+        const paid = invoice.payments.reduce((pSum, payment) => pSum + payment.amount, 0);
+        return sum + (invoice.amount - paid);
+      }, 0);
+      
+      const settings = await prisma.systemSettings.findFirst();
+      const graceDays = settings?.paymentGraceDays || 7;
+      const oldestOverdue = overdueInvoices.reduce((oldest, invoice) => 
+        invoice.dueDate < oldest.dueDate ? invoice : oldest
+      );
+      const daysPastDue = Math.floor(
+        (new Date().getTime() - new Date(oldestOverdue.dueDate).getTime()) / (1000 * 60 * 60 * 24)
+      );
+      const daysRemaining = graceDays - daysPastDue;
+      
+      paymentAlert = {
+        totalOverdue,
+        daysRemaining: Math.max(0, daysRemaining),
+        isUrgent: daysRemaining <= 2
+      };
+    }
+
     res.json({
       token,
       user: userResponse,
       tenant,
+      paymentAlert,
     } as ClientLoginResponse);
 
   } catch (error) {

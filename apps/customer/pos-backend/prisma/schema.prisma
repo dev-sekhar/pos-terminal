@@ -29,6 +29,7 @@ model Tenant {
   subdomain     String  @unique
   settings      Json?
   pricingPlanId Int?
+  active        Boolean @default(true)
   deleted       Boolean @default(false)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -45,6 +46,7 @@ model Tenant {
   saleItems     SaleItem[]
   purchaseItems PurchaseItem[]
   auditLogs     AuditLog[]
+  invoices      Invoice[]
 }
 
 model User {
@@ -303,4 +305,50 @@ model PricingPlan {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   tenants     Tenant[]
+}
+
+model Employee {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  name      String
+  role      String   @default("ADMIN")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Invoice {
+  id          Int      @id @default(autoincrement())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  amount      Float
+  dueDate     DateTime
+  status      String   @default("PENDING") // PENDING, PAID, OVERDUE
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  payments    Payment[]
+
+  @@index([tenantId])
+}
+
+model Payment {
+  id          Int      @id @default(autoincrement())
+  invoiceId   Int
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id])
+  amount      Float
+  paymentDate DateTime
+  method      String   @default("CARD") // CARD, BANK, CASH
+  reference   String?
+  createdAt   DateTime @default(now())
+
+  @@index([invoiceId])
+}
+
+model SystemSettings {
+  id                Int     @id @default(autoincrement())
+  paymentGraceDays  Int     @default(7)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }
