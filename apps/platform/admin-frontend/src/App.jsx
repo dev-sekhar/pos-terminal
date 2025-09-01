@@ -5,6 +5,7 @@ import CssBaseline from '@mui/material/CssBaseline';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Tenants from './pages/Tenants';
+import Users from './pages/Users';
 import Billing from './pages/Billing';
 import Settings from './pages/Settings';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -40,6 +41,11 @@ function App() {
           <Route path="/tenants" element={
             <ProtectedRoute>
               <Tenants />
+            </ProtectedRoute>
+          } />
+          <Route path="/users" element={
+            <ProtectedRoute>
+              <Users />
             </ProtectedRoute>
           } />
           <Route path="/billing/:tenantId" element={
