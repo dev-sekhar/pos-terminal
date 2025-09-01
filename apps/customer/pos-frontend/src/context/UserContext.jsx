@@ -41,11 +41,6 @@ export const UserProvider = ({ children }) => {
     validateSession();
   }, []); // The empty dependency array means this runs only ONCE on initial app load
 
-  // While checking the session, show a loading indicator or blank screen
-  if (loading) {
-    return null; // Or <CircularProgress />
-  }
-
   return (
     <UserContext.Provider value={{ user, setUser, logout, loading }}>
       {children}

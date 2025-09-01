@@ -24,6 +24,8 @@ import {
   CircularProgress,
   FormControlLabel,
   Switch,
+  Tabs,
+  Tab,
 } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -56,6 +58,7 @@ const Users = () => {
   const [currentUser, setCurrentUser] = useState(initialFormState);
   const [formErrors, setFormErrors] = useState([]);
   const [planLimits, setPlanLimits] = useState(null);
+  const [activeTab, setActiveTab] = useState(0); // 0 for Active, 1 for Deleted
 
   const fetchData = useCallback(async () => {
     if (!tenant) return;
@@ -64,7 +67,7 @@ const Users = () => {
     try {
       // Admins need the full branch list for the dropdown. Managers don't.
       const fetchPromises = [
-        authenticatedFetch("/api/users"),
+        authenticatedFetch(`/api/users?showDeleted=${activeTab === 1}`),
         authenticatedFetch("/api/pricing/limits")
       ];
       if (loggedInUser?.role === "ADMIN") {
@@ -81,7 +84,7 @@ const Users = () => {
     } finally {
       setLoading(false);
     }
-  }, [tenant, loggedInUser?.role]);
+  }, [tenant, loggedInUser?.role, activeTab]);
 
   useEffect(() => {
     fetchData();
@@ -178,19 +181,29 @@ const Users = () => {
     ? planLimits.users.maxAllowed - planLimits.users.currentCount 
     : null;
 
+  const displayedUsers = users.filter(user => 
+    activeTab === 0 ? !user.deleted : user.deleted
+  );
+
   return (
     <Box>
+            <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
+        <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)} aria-label="user tabs">
+          <Tab label="Active Users" />
+          <Tab label="Deleted Users" />
+        </Tabs>
+      </Box>
       <Box
         display="flex"
         justifyContent="space-between"
         alignItems="center"
         mb={2}
       >
-        <Typography variant="h4">Users</Typography>
+        <Typography variant="h4">{activeTab === 0 ? "Active Users" : "Deleted Users"}</Typography>
         <Button 
           variant="contained" 
           onClick={() => handleOpen()}
-          disabled={isAtLimit}
+          disabled={isAtLimit || activeTab === 1} // Disable Add User button on Deleted Users tab
         >
           Add User
         </Button>
@@ -219,7 +232,7 @@ const Users = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {users.map((user) => (
+            {displayedUsers.map((user) => (
               <TableRow key={user.id}>
                 <TableCell>{user.name}</TableCell>
                 <TableCell>{user.email}</TableCell>
@@ -235,12 +248,17 @@ const Users = () => {
                   )}
                 </TableCell>
                 <TableCell>
-                  <IconButton onClick={() => handleOpen(user)}>
+                  <IconButton 
+                    onClick={() => handleOpen(user)} 
+                    sx={{ color: 'blue' }}
+                    disabled={user.deleted || user.id === loggedInUser.id}
+                  >
                     <EditIcon />
                   </IconButton>
                   <IconButton
                     onClick={() => handleDelete(user.id)}
-                    color="error"
+                    sx={{ color: 'red' }}
+                    disabled={user.deleted || user.id === loggedInUser.id}
                   >
                     <DeleteIcon />
                   </IconButton>

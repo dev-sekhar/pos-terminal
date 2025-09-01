@@ -1,3 +1,5 @@
+const BASE_URL = "http://localhost:5000"; // Customer backend URL
+
 export const authenticatedFetch = async (url, options = {}) => {
   const token = localStorage.getItem("token");
   const headers = {
@@ -7,7 +9,7 @@ export const authenticatedFetch = async (url, options = {}) => {
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
-  const fullUrl = url;
+  const fullUrl = `${BASE_URL}${url}`;
 
   const response = await fetch(fullUrl, {
     ...options,
@@ -43,3 +45,4 @@ export const authenticatedFetch = async (url, options = {}) => {
   }
   return null;
 };
+

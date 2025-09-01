@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -20,10 +20,13 @@ import {
   FormControlLabel,
   CircularProgress,
   Alert,
+  Tabs,
+  Tab,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import Layout from '../components/Layout';
+import { useAuth } from '../context/AuthContext';
 
 const initialFormState = {
   name: '',
@@ -34,23 +37,25 @@ const initialFormState = {
 };
 
 const Users = () => {
+  const { user: loggedInUser } = useAuth();
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [open, setOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [currentEmployee, setCurrentEmployee] = useState(initialFormState);
+  const [activeTab, setActiveTab] = useState(0); // 0 for Active, 1 for Deleted
 
   useEffect(() => {
     fetchEmployees();
-  }, []);
+  }, [activeTab]); // Add activeTab to dependency array
 
   const fetchEmployees = async () => {
     setLoading(true);
     setError('');
     try {
       const token = localStorage.getItem('employeeToken');
-      const response = await fetch('http://localhost:5002/api/employees', {
+      const response = await fetch(`http://localhost:5002/api/employees?showDeleted=${activeTab === 1}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -146,15 +151,36 @@ const Users = () => {
     }
   };
 
+  const displayedEmployees = employees.filter(employee => 
+    activeTab === 0 ? employee.active : !employee.active
+  );
+
   return (
     <Layout>
       <Box>
-        <Typography variant="h4" gutterBottom>
-          Admin Users
-        </Typography>
-        <Button variant="contained" onClick={() => handleOpen()}>
-          Add Employee
-        </Button>
+        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
+          <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)} aria-label="user tabs">
+            <Tab label="Active Users" />
+            <Tab label="Deleted Users" />
+          </Tabs>
+        </Box>
+        <Box
+          display="flex"
+          justifyContent="space-between"
+          alignItems="center"
+          mb={2}
+        >
+          <Typography variant="h4" gutterBottom>
+            {activeTab === 0 ? "Active Admin Users" : "Deleted Admin Users"}
+          </Typography>
+          <Button
+            variant="contained"
+            onClick={() => handleOpen()}
+            disabled={activeTab === 1} // Disable Add User button on Deleted Users tab
+          >
+            Add Employee
+          </Button>
+        </Box>
 
         {loading ? (
           <CircularProgress />
@@ -173,7 +199,7 @@ const Users = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {employees.map((employee) => (
+                {displayedEmployees.map((employee) => (
                   <TableRow key={employee.id}>
                     <TableCell>{employee.name}</TableCell>
                     <TableCell>{employee.email}</TableCell>
@@ -182,10 +208,18 @@ const Users = () => {
                       {employee.active ? 'Active' : 'Inactive'}
                     </TableCell>
                     <TableCell>
-                      <IconButton onClick={() => handleOpen(employee)}>
+                      <IconButton 
+                        onClick={() => handleOpen(employee)} 
+                        sx={{ color: 'blue' }}
+                        disabled={!employee.active || employee.id === loggedInUser.id}
+                      >
                         <EditIcon />
                       </IconButton>
-                      <IconButton onClick={() => handleDelete(employee.id)}>
+                      <IconButton 
+                        onClick={() => handleDelete(employee.id)} 
+                        sx={{ color: 'red' }}
+                        disabled={!employee.active || employee.id === loggedInUser.id}
+                      >
                         <DeleteIcon />
                       </IconButton>
                     </TableCell>

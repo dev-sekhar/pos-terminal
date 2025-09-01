@@ -242,3 +242,63 @@ app.patch('/api/settings', authenticateToken, async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Admin backend running on port ${PORT}`);
 });
+
+// Employee CRUD endpoints
+app.get('/api/employees', authenticateToken, async (req, res) => {
+  try {
+    const { showDeleted } = req.query; // Get the query parameter
+
+    const whereClause = showDeleted === 'true' ? {} : { deleted: false }; // Conditionally set where clause
+
+    const employees = await prisma.employee.findMany({
+      where: whereClause,
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json(employees);
+  } catch (error) {
+    console.error('Error fetching employees:', error);
+    res.status(500).json({ message: 'Failed to fetch employees' });
+  }
+});
+
+app.post('/api/employees', authenticateToken, async (req, res) => {
+  try {
+    const { name, email, password, role } = req.body;
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newEmployee = await prisma.employee.create({
+      data: { name, email, password: hashedPassword, role, active: true }
+    });
+    res.status(201).json(newEmployee);
+  } catch (error) {
+    console.error('Error creating employee:', error);
+    res.status(500).json({ message: 'Failed to create employee' });
+  }
+});
+
+app.put('/api/employees/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, email, role, active } = req.body;
+    const updatedEmployee = await prisma.employee.update({
+      where: { id: parseInt(id) },
+      data: { name, email, role, active }
+    });
+    res.json(updatedEmployee);
+  } catch (error) {
+    console.error('Error updating employee:', error);
+    res.status(500).json({ message: 'Failed to update employee' });
+  }
+});
+
+app.delete('/api/employees/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await prisma.employee.update({ where: { id: parseInt(id) }, data: { deleted: true } });
+    res.status(204).send();
+  } catch (error) {
+    console.error('Error deleting employee:', error);
+    res.status(500).json({ message: 'Failed to delete employee' });
+  }
+});
+
+

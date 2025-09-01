@@ -24,17 +24,17 @@ enum Role {
 // =========================
 
 model Tenant {
-  id            String  @id @default(cuid())
+  id            String   @id @default(cuid())
   name          String
-  subdomain     String  @unique
+  subdomain     String   @unique
   settings      Json?
   pricingPlanId Int?
-  active        Boolean @default(true)
-  deleted       Boolean @default(false)
+  active        Boolean  @default(true)
+  deleted       Boolean  @default(false)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  pricingPlan   PricingPlan? @relation(fields: [pricingPlanId], references: [id])
+  pricingPlan   PricingPlan?         @relation(fields: [pricingPlanId], references: [id])
   users         User[]
   branches      Branch[]
   products      Product[]
@@ -314,20 +314,21 @@ model Employee {
   name      String
   role      String   @default("ADMIN")
   active    Boolean  @default(true)
+  deleted   Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model Invoice {
-  id          Int      @id @default(autoincrement())
+  id          Int       @id @default(autoincrement())
   tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  tenant      Tenant    @relation(fields: [tenantId], references: [id])
   amount      Float
   dueDate     DateTime
-  status      String   @default("PENDING") // PENDING, PAID, OVERDUE
+  status      String    @default("PENDING") // PENDING, PAID, OVERDUE
   description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   payments    Payment[]
 
   @@index([tenantId])
@@ -347,8 +348,8 @@ model Payment {
 }
 
 model SystemSettings {
-  id                Int     @id @default(autoincrement())
-  paymentGraceDays  Int     @default(7)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id               Int      @id @default(autoincrement())
+  paymentGraceDays Int      @default(7)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }
