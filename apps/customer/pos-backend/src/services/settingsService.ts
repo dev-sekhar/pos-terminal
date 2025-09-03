@@ -139,7 +139,32 @@ export const updateSettings = async (requestingUser: User, newSettingsData: Part
       // 3. Update the tenant with the fully merged new settings and pricingPlanId
       const updateData: any = { settings: newSettings };
       if ('pricingPlanId' in newSettingsData) {
-        updateData.pricingPlanId = newSettingsData.pricingPlanId;
+        // If no current plan or same plan, update immediately
+        if (!tenant.pricingPlanId || tenant.pricingPlanId === newSettingsData.pricingPlanId) {
+          updateData.pricingPlanId = newSettingsData.pricingPlanId;
+          if (!tenant.currentPlanStartDate) {
+            updateData.currentPlanStartDate = new Date();
+          }
+        } else {
+          // If changing to a different plan, schedule for next billing period
+          updateData.nextPlanId = newSettingsData.pricingPlanId;
+          
+          // Calculate next billing period start date
+          if (tenant.currentPlanStartDate) {
+            const startDate = new Date(tenant.currentPlanStartDate);
+            const now = new Date();
+            const monthsDiff = (now.getFullYear() - startDate.getFullYear()) * 12 + (now.getMonth() - startDate.getMonth());
+            
+            const nextPeriodStart = new Date(startDate);
+            nextPeriodStart.setMonth(startDate.getMonth() + monthsDiff + 1);
+            
+            const currentPeriodEnd = new Date(nextPeriodStart);
+            currentPeriodEnd.setDate(currentPeriodEnd.getDate() - 1);
+            
+            updateData.nextPlanActivationDate = nextPeriodStart;
+            updateData.currentPlanEndDate = currentPeriodEnd;
+          }
+        }
       }
       
       const updatedTenant = await tx.tenant.update({
@@ -153,6 +178,8 @@ export const updateSettings = async (requestingUser: User, newSettingsData: Part
       }
       console.log('DB UPDATE RESULT:', JSON.stringify(dbResultNoLogo, null, 2));
       console.log('DB dashboardWidgets saved:', JSON.stringify((updatedTenant.settings as any)?.dashboardWidgets, null, 2));
+      console.log('Updated tenant nextPlanId:', updatedTenant.nextPlanId);
+      console.log('Updated tenant nextPlanActivationDate:', updatedTenant.nextPlanActivationDate);
       console.log('=== END UPDATE SETTINGS DEBUG ===');
       
       // Return the merged settings we just saved, not what's in the database

@@ -7,7 +7,12 @@ import {
   Alert,
   Container,
   Paper,
-  Link
+  Link,
+  Grid,
+  Card,
+  CardContent,
+  CardActions,
+  Chip
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useNavigate } from 'react-router-dom';
@@ -25,11 +30,26 @@ const Register = () => {
     name: '',
     email: '',
     password: '',
+    pricingPlanId: null
   });
   const [registerError, setRegisterError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [pricingPlans, setPricingPlans] = useState([]);
 
-  
+  useEffect(() => {
+    const fetchPricingPlans = async () => {
+      try {
+        const response = await fetch('/api/pricing');
+        if (response.ok) {
+          const plans = await response.json();
+          setPricingPlans(plans);
+        }
+      } catch (error) {
+        console.error('Failed to fetch pricing plans:', error);
+      }
+    };
+    fetchPricingPlans();
+  }, []);
 
   const handleAuthSuccess = (data) => {
     localStorage.setItem('token', data.token);
@@ -56,6 +76,7 @@ const Register = () => {
           tenant: {
             name: registerForm.tenantName,
             subdomain: registerForm.subdomain,
+            pricingPlanId: registerForm.pricingPlanId
           },
           user: {
             name: registerForm.name,
@@ -147,6 +168,53 @@ const Register = () => {
             required
             autoComplete="new-password"
           />
+
+          <Typography variant="h6" sx={{ mt: 3, mb: 2 }}>
+            Choose Your Plan
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Select a pricing plan to get started. You can change this later.
+          </Typography>
+          
+          <Grid container spacing={2} sx={{ mb: 2 }}>
+            {pricingPlans.map((plan) => (
+              <Grid item xs={12} sm={6} key={plan.id}>
+                <Card 
+                  sx={{ 
+                    border: registerForm.pricingPlanId === plan.id ? 2 : 1,
+                    borderColor: registerForm.pricingPlanId === plan.id ? 'primary.main' : 'grey.300',
+                    cursor: 'pointer',
+                    position: 'relative'
+                  }}
+                  onClick={() => setRegisterForm({ ...registerForm, pricingPlanId: plan.id })}
+                >
+                  {registerForm.pricingPlanId === plan.id && (
+                    <Chip 
+                      label="Selected" 
+                      color="primary" 
+                      size="small" 
+                      sx={{ position: 'absolute', top: 8, right: 8 }}
+                    />
+                  )}
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom>{plan.name}</Typography>
+                    <Typography variant="h5" color="primary" gutterBottom>
+                      {plan.price === null ? 'Contact Us' : plan.price === 0 ? 'Free' : `$${plan.price}/${plan.paymentFrequency}`}
+                    </Typography>
+                    <Typography variant="body2" sx={{ mb: 1 }}>Users: {plan.maxUsers || 'Unlimited'}</Typography>
+                    <Typography variant="body2" sx={{ mb: 1 }}>Branches: {plan.maxBranches || 'Unlimited'}</Typography>
+                    <Typography variant="body2">Products: {plan.maxProducts || 'Unlimited'}</Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+          
+          {!registerForm.pricingPlanId && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Please select a pricing plan. If none is selected, you'll be assigned the Free plan by default.
+            </Alert>
+          )}
 
           {registerError && (
             <Alert severity="error" sx={{ mt: 2 }}>

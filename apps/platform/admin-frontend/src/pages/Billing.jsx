@@ -16,9 +16,19 @@ import {
   Button,
   Grid,
   Card,
-  CardContent
+  CardContent,
+  Snackbar,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  TextField
 } from '@mui/material';
-import { ArrowBack } from '@mui/icons-material';
+import { ArrowBack, Receipt, ChangeCircle } from '@mui/icons-material';
 import Layout from '../components/Layout';
 
 const Billing = () => {
@@ -27,9 +37,16 @@ const Billing = () => {
   const [billingData, setBillingData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [generating, setGenerating] = useState(false);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [changePlanDialog, setChangePlanDialog] = useState(false);
+  const [pricingPlans, setPricingPlans] = useState([]);
+  const [selectedPlan, setSelectedPlan] = useState('');
+  const [activationDate, setActivationDate] = useState('');
 
   useEffect(() => {
     fetchBillingData();
+    fetchPricingPlans();
   }, [tenantId]);
 
   const fetchBillingData = async () => {
@@ -43,6 +60,7 @@ const Billing = () => {
 
       if (response.ok) {
         const data = await response.json();
+        console.log('DEBUG - Billing data received:', data);
         setBillingData(data);
       } else {
         setError('Failed to fetch billing data');
@@ -51,6 +69,83 @@ const Billing = () => {
       setError('Error loading billing data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchPricingPlans = async () => {
+    try {
+      const token = localStorage.getItem('employeeToken');
+      const response = await fetch('http://localhost:5002/api/pricing-plans', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setPricingPlans(data);
+      }
+    } catch (err) {
+      console.error('Error fetching pricing plans:', err);
+    }
+  };
+
+  const changePlan = async () => {
+    console.log('DEBUG - Change plan called with:', { selectedPlan, activationDate });
+    try {
+      const token = localStorage.getItem('employeeToken');
+      const response = await fetch(`http://localhost:5002/api/tenants/${tenantId}/change-plan`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          newPlanId: selectedPlan,
+          activationDate
+        })
+      });
+
+      console.log('DEBUG - Change plan response status:', response.status);
+      if (response.ok) {
+        const result = await response.json();
+        console.log('DEBUG - Change plan result:', result);
+        setSnackbar({ open: true, message: 'Plan change scheduled successfully', severity: 'success' });
+        setChangePlanDialog(false);
+        fetchBillingData();
+      } else {
+        const errorData = await response.json();
+        console.log('DEBUG - Change plan error:', errorData);
+        setSnackbar({ open: true, message: errorData.message || 'Failed to change plan', severity: 'error' });
+      }
+    } catch (err) {
+      console.log('DEBUG - Change plan exception:', err);
+      setSnackbar({ open: true, message: 'Error changing plan', severity: 'error' });
+    }
+  };
+
+  const generateInvoice = async () => {
+    setGenerating(true);
+    try {
+      const token = localStorage.getItem('employeeToken');
+      const response = await fetch(`http://localhost:5002/api/tenants/${tenantId}/generate-invoice`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        setSnackbar({ open: true, message: 'Invoice generated successfully', severity: 'success' });
+        fetchBillingData(); // Refresh data
+      } else {
+        const errorData = await response.json();
+        setSnackbar({ open: true, message: errorData.message || 'Failed to generate invoice', severity: 'error' });
+      }
+    } catch (err) {
+      setSnackbar({ open: true, message: 'Error generating invoice', severity: 'error' });
+    } finally {
+      setGenerating(false);
     }
   };
 
@@ -84,17 +179,37 @@ const Billing = () => {
   return (
     <Layout>
       <Box>
-        <Box display="flex" alignItems="center" mb={3}>
-          <Button
-            startIcon={<ArrowBack />}
-            onClick={() => navigate('/tenants')}
-            sx={{ mr: 2 }}
-          >
-            Back to Tenants
-          </Button>
-          <Typography variant="h4">
-            Billing - {billingData?.tenant?.name}
-          </Typography>
+        <Box display="flex" alignItems="center" justifyContent="space-between" mb={3}>
+          <Box display="flex" alignItems="center">
+            <Button
+              startIcon={<ArrowBack />}
+              onClick={() => navigate('/tenants')}
+              sx={{ mr: 2 }}
+            >
+              Back to Tenants
+            </Button>
+            <Typography variant="h4">
+              Billing - {billingData?.tenant?.name}
+            </Typography>
+          </Box>
+          <Box>
+            <Button
+              variant="outlined"
+              startIcon={<ChangeCircle />}
+              onClick={() => setChangePlanDialog(true)}
+              sx={{ mr: 2 }}
+            >
+              Change Plan
+            </Button>
+            <Button
+              variant="contained"
+              startIcon={<Receipt />}
+              onClick={generateInvoice}
+              disabled={generating}
+            >
+              {generating ? 'Generating...' : 'Generate Invoice'}
+            </Button>
+          </Box>
         </Box>
 
         <Grid container spacing={3} sx={{ mb: 3 }}>
@@ -120,8 +235,36 @@ const Billing = () => {
                   {billingData?.tenant?.pricingPlan?.name || 'No Plan'}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  {billingData?.tenant?.pricingPlan?.price || 'Free'}
+                  {billingData?.tenant?.pricingPlan?.price === null ? 'Contact Us' : billingData?.tenant?.pricingPlan?.price === 0 ? 'Free' : `${billingData?.tenant?.pricingPlan?.currency === 'USD' ? '$' : billingData?.tenant?.pricingPlan?.currency}${billingData?.tenant?.pricingPlan?.price}/${billingData?.tenant?.pricingPlan?.paymentFrequency}`}
                 </Typography>
+                {billingData?.tenant?.currentPlanStartDate && (
+                  <Typography variant="caption" display="block" sx={{ mt: 1 }}>
+                    Started: {new Date(billingData.tenant.currentPlanStartDate).toLocaleDateString()}
+                  </Typography>
+                )}
+                {(() => {
+                  const endDate = billingData?.tenant?.currentPlanEndDate;
+                  console.log('DEBUG - End date value:', endDate, 'Type:', typeof endDate);
+                  const shouldShow = endDate && endDate !== null && endDate !== 'null' && endDate !== '1970-01-01T00:00:00.000Z';
+                  console.log('DEBUG - Should show end date:', shouldShow);
+                  return shouldShow;
+                })() && (
+                  <Typography variant="caption" display="block">
+                    Ends: {new Date(billingData.tenant.currentPlanEndDate).toLocaleDateString()}
+                  </Typography>
+                )}
+                {billingData?.tenant?.nextPlanId && (
+                  <Box sx={{ mt: 1, p: 1, bgcolor: 'info.light', borderRadius: 1 }}>
+                    <Typography variant="caption" display="block" color="info.contrastText">
+                      Next Plan: {billingData.tenant.nextPlan?.name}
+                    </Typography>
+                    {billingData?.tenant?.nextPlanActivationDate && (
+                      <Typography variant="caption" display="block" color="info.contrastText">
+                        Activates: {new Date(billingData.tenant.nextPlanActivationDate).toLocaleDateString()}
+                      </Typography>
+                    )}
+                  </Box>
+                )}
               </CardContent>
             </Card>
           </Grid>
@@ -204,6 +347,51 @@ const Billing = () => {
             </Box>
           )}
         </Paper>
+        
+        <Dialog open={changePlanDialog} onClose={() => setChangePlanDialog(false)} maxWidth="sm" fullWidth>
+          <DialogTitle>Change Plan</DialogTitle>
+          <DialogContent>
+            <FormControl fullWidth sx={{ mt: 2 }}>
+              <InputLabel>New Plan</InputLabel>
+              <Select
+                value={selectedPlan}
+                onChange={(e) => setSelectedPlan(e.target.value)}
+                label="New Plan"
+              >
+                {pricingPlans.map((plan) => (
+                  <MenuItem key={plan.id} value={plan.id}>
+                    {plan.name} - {plan.price === null ? 'Contact Us' : plan.price === 0 ? 'Free' : `$${plan.price}/${plan.paymentFrequency}`}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <TextField
+              fullWidth
+              label="Activation Date"
+              type="date"
+              value={activationDate}
+              onChange={(e) => setActivationDate(e.target.value)}
+              sx={{ mt: 2 }}
+              InputLabelProps={{ shrink: true }}
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setChangePlanDialog(false)}>Cancel</Button>
+            <Button onClick={changePlan} variant="contained" disabled={!selectedPlan || !activationDate}>
+              Schedule Change
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        <Snackbar
+          open={snackbar.open}
+          autoHideDuration={6000}
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+        >
+          <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })}>
+            {snackbar.message}
+          </Alert>
+        </Snackbar>
       </Box>
     </Layout>
   );

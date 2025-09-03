@@ -28,8 +28,10 @@ import settingsRoutes from './routes/settings';
 import pricingRoutes from './routes/pricing';
 import reportsRoutes from './routes/reports';
 import billingRoutes from './routes/billing';
+import webhooksRoutes from './routes/webhooks'; // New import
 import authMiddleware from './middleware/authMiddleware';
 import tenantMiddleware from './middleware/tenantMiddleware';
+import { blockEditOperations } from './middleware/paymentStatusMiddleware';
 
 // --- INITIALIZE APP ---
 dotenv.config();
@@ -52,6 +54,10 @@ app.use(cors({
   },
   credentials: true
 }));
+
+// Stripe Webhook needs raw body, so it must come before express.json()
+app.use('/api/webhooks', express.raw({ type: 'application/json' }), webhooksRoutes);
+
 app.use(express.json());
 
 app.use((req, res, next) => {
@@ -80,7 +86,7 @@ app.get('/api/pricing', async (req, res) => {
 app.use('/api', validateTenantRoutes);
 
 // --- PROTECTED ROUTES (Auth Required) ---
-const protectedMiddleware = [authMiddleware, tenantMiddleware];
+const protectedMiddleware = [authMiddleware, tenantMiddleware, blockEditOperations];
 
 app.use('/api/users', protectedMiddleware, userRoutes);
 app.use('/api/branches', protectedMiddleware, branchRoutes);
@@ -94,9 +100,9 @@ app.use('/api/tenants', protectedMiddleware, tenantsRoutes);
 app.use('/api/dashboard', protectedMiddleware, dashboardRoutes);
 app.use('/api/settings', protectedMiddleware, settingsRoutes);
 app.use('/api/reports', protectedMiddleware, reportsRoutes);
-app.use('/api/billing', protectedMiddleware, billingRoutes);
-// Protected pricing endpoints (limits)
-app.use('/api/pricing', protectedMiddleware, pricingRoutes);
+app.use('/api/billing', protectedMiddleware, billingRoutes); // New billing routes
+// Protected pricing endpoints (limits) - read-only, no edit blocking needed
+app.use('/api/pricing', [authMiddleware, tenantMiddleware], pricingRoutes);
 
 // --- GLOBAL ERROR HANDLER (must be last) ---
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
@@ -125,6 +131,8 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   res.status(500).json({ message: 'Internal server error' });
 });
 
+import { startCronJobs } from './jobs/cronJobs'; // New import
+
 // --- LIST ENDPOINTS & START SERVER ---
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
@@ -136,6 +144,7 @@ app.listen(PORT, () => {
   } catch (e) {
     console.log("Could not display endpoints.", e);
   }
+  startCronJobs(); // Start cron jobs for invoice generation
 });
 
 export default app;

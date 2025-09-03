@@ -6,6 +6,7 @@ import {
   Box,
   Alert,
   CircularProgress,
+  Button,
 } from "@mui/material";
 import {
   BarChart,
@@ -15,9 +16,11 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { Warning, Payment } from "@mui/icons-material";
 import { useTenant } from "../context/TenantContext";
 import { useSettings } from "../context/SettingsContext";
 import { authenticatedFetch } from "../utils/api";
+import { useNavigate } from "react-router-dom";
 
 const initialMetrics = {
   totalToday: 0,
@@ -31,12 +34,15 @@ const initialMetrics = {
 const Dashboard = () => {
   const { tenant } = useTenant();
   const { settings } = useSettings();
+  const navigate = useNavigate();
   
   const widgetSettings = settings?.dashboardWidgets || {};
 
   const [metrics, setMetrics] = useState(initialMetrics);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [paymentAlert, setPaymentAlert] = useState(null);
+  const [paymentStatus, setPaymentStatus] = useState(null);
 
   useEffect(() => {
     const fetchDashboardMetrics = async () => {
@@ -52,6 +58,18 @@ const Dashboard = () => {
         setLoading(false);
       }
     };
+    
+    // Load payment status from localStorage
+    const storedPaymentAlert = localStorage.getItem("paymentAlert");
+    const storedPaymentStatus = localStorage.getItem("paymentStatus");
+    
+    if (storedPaymentAlert) {
+      setPaymentAlert(JSON.parse(storedPaymentAlert));
+    }
+    if (storedPaymentStatus) {
+      setPaymentStatus(JSON.parse(storedPaymentStatus));
+    }
+    
     fetchDashboardMetrics();
   }, [tenant]);
 
@@ -62,11 +80,55 @@ const Dashboard = () => {
 
   const currency = settings?.currency || "$";
 
+  const getPaymentAlertSeverity = () => {
+    if (!paymentAlert) return 'info';
+    if (paymentAlert.stage === 'blocked') return 'error';
+    if (paymentAlert.stage === 'readonly') return 'warning';
+    return paymentAlert.isUrgent ? 'warning' : 'info';
+  };
+
+  const getPaymentAlertMessage = () => {
+    if (!paymentAlert) return '';
+    
+    const currency = settings?.currency || '$';
+    const amount = `${currency}${paymentAlert.totalOverdue?.toFixed(2) || '0.00'}`;
+    
+    if (paymentAlert.stage === 'readonly') {
+      return `Payment overdue: ${amount}. System is in read-only mode. Add/edit functions are disabled.`;
+    }
+    if (paymentAlert.stage === 'normal' && paymentAlert.isUrgent) {
+      return `Payment overdue: ${amount}. Please make payment to avoid service restrictions.`;
+    }
+    return `Payment overdue: ${amount}. Please make payment to keep your account active.`;
+  };
+
   return (
     <Box sx={{ p: { xs: 1, sm: 2, md: 3 } }}>
       <Typography variant="h4" gutterBottom>
         Dashboard
       </Typography>
+      
+      {/* Payment Status Alert */}
+      {paymentAlert && (
+        <Alert 
+          severity={getPaymentAlertSeverity()}
+          icon={<Warning />}
+          sx={{ mb: 3 }}
+          action={
+            <Button 
+              color="inherit" 
+              size="small" 
+              startIcon={<Payment />}
+              onClick={() => navigate('/app/billing')}
+            >
+              Make Payment
+            </Button>
+          }
+        >
+          {getPaymentAlertMessage()}
+        </Alert>
+      )}
+      
       <Grid container spacing={3}>
         {/* Total Sales Today Widget */}
         {widgetSettings.totalToday !== false && (

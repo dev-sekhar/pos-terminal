@@ -12,4 +12,18 @@ export interface ClientLoginResponse {
     subdomain: string;
     // ...other tenant fields
   };
+  paymentAlert?: {
+    totalOverdue: number;
+    daysPastDue: number;
+    stage: 'normal' | 'readonly' | 'blocked';
+    canEdit: boolean;
+    isUrgent: boolean;
+  };
+  paymentStatus?: {
+    canLogin: boolean;
+    canEdit: boolean;
+    daysPastDue: number;
+    stage: 'normal' | 'readonly' | 'blocked';
+    message?: string;
+  };
 }

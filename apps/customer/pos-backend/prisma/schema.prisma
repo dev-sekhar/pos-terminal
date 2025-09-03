@@ -1,13 +1,13 @@
 // Prisma schema for multi-tenant POS system
 
-generator client {
-  provider = "prisma-client-js"
-  output   = "../../../../node_modules/.prisma/client"
-}
-
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../../../node_modules/.prisma/client"
 }
 
 // =========================
@@ -24,29 +24,36 @@ enum Role {
 // =========================
 
 model Tenant {
-  id            String   @id @default(cuid())
-  name          String
-  subdomain     String   @unique
-  settings      Json?
-  pricingPlanId Int?
-  active        Boolean  @default(true)
-  deleted       Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id                     String       @id @default(cuid())
+  name                   String
+  subdomain              String       @unique
+  settings               Json?
+  pricingPlanId          Int?
+  active                 Boolean      @default(true)
+  deleted                Boolean      @default(false)
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
+  currentPlanStartDate   DateTime? // When the current plan cycle began
+  currentPlanEndDate     DateTime? // When the current plan cycle ends
+  nextPlanId             Int? // For scheduled plan changes
+  nextPlanActivationDate DateTime? // When the next plan becomes active
+  stripeCustomerId       String?      @unique // To store Stripe Customer ID
+  stripeSubscriptionId   String?      @unique // To store Stripe Subscription ID
 
-  pricingPlan   PricingPlan?         @relation(fields: [pricingPlanId], references: [id])
-  users         User[]
-  branches      Branch[]
-  products      Product[]
-  categories    ProductCategory[]
-  suppliers     TenantsOnSuppliers[]
-  sales         Sale[]
-  purchases     Purchase[]
-  inventories   Inventory[]
-  saleItems     SaleItem[]
-  purchaseItems PurchaseItem[]
-  auditLogs     AuditLog[]
-  invoices      Invoice[]
+  pricingPlan            PricingPlan? @relation(fields: [pricingPlanId], references: [id])
+  nextPlan               PricingPlan? @relation("NextTenantPlan", fields: [nextPlanId], references: [id])
+  users                  User[]
+  branches               Branch[]
+  products               Product[]
+  categories             ProductCategory[]
+  suppliers              TenantsOnSuppliers[]
+  sales                  Sale[]
+  purchases              Purchase[]
+  inventories            Inventory[]
+  saleItems              SaleItem[]
+  purchaseItems          PurchaseItem[]
+  auditLogs              AuditLog[]
+  invoices               Invoice[]
 }
 
 model User {
@@ -294,17 +301,21 @@ model PurchaseItem {
 }
 
 model PricingPlan {
-  id          Int      @id @default(autoincrement())
-  name        String   @unique
-  price       String
-  maxUsers    String
-  maxBranches String
-  maxProducts String
-  features    Json?
-  active      Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  tenants     Tenant[]
+  id               Int      @id @default(autoincrement())
+  name             String   @unique
+  price            Float?   // NULL for "Contact Us" plans
+  currency         String   @default("USD")
+  paymentFrequency String   @default("monthly")
+  maxUsers         Int?     // NULL for unlimited
+  maxBranches      Int?     // NULL for unlimited
+  maxProducts      Int?     // NULL for unlimited
+  features         Json?
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  tenants          Tenant[] // Existing relation for current plans
+  nextTenants      Tenant[] @relation("NextTenantPlan") // New relation for next plans
+  invoices         Invoice[] // New relation for invoices
 }
 
 model Employee {
@@ -323,6 +334,8 @@ model Invoice {
   id          Int       @id @default(autoincrement())
   tenantId    String
   tenant      Tenant    @relation(fields: [tenantId], references: [id])
+  planId      Int
+  pricingPlan PricingPlan @relation(fields: [planId], references: [id])
   amount      Float
   dueDate     DateTime
   status      String    @default("PENDING") // PENDING, PAID, OVERDUE
@@ -335,21 +348,24 @@ model Invoice {
 }
 
 model Payment {
-  id          Int      @id @default(autoincrement())
-  invoiceId   Int
-  invoice     Invoice  @relation(fields: [invoiceId], references: [id])
-  amount      Float
-  paymentDate DateTime
-  method      String   @default("CARD") // CARD, BANK, CASH
-  reference   String?
-  createdAt   DateTime @default(now())
+  id                          Int      @id @default(autoincrement())
+  invoiceId                   Int
+  invoice                     Invoice  @relation(fields: [invoiceId], references: [id])
+  amount                      Float
+  paymentDate                 DateTime
+  method                      String   @default("CARD") // CARD, BANK, CASH
+  reference                   String?
+  paymentGatewayTransactionId String? // Transaction ID from Stripe or other gateway
+  createdAt                   DateTime @default(now())
 
   @@index([invoiceId])
 }
 
 model SystemSettings {
-  id               Int      @id @default(autoincrement())
-  paymentGraceDays Int      @default(7)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                    Int      @id @default(autoincrement())
+  paymentGraceDays      Int      @default(7)   // Normal functioning period
+  readOnlyGraceDays     Int      @default(14)  // View-only period
+  loginBlockGraceDays   Int      @default(21)  // Complete login block period
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 }

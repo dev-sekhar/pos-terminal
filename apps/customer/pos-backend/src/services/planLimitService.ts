@@ -24,31 +24,31 @@ export class PricingPlanEnforcer {
 
     const plan = tenant.pricingPlan;
     let currentCount = 0;
-    const planField = `max${resourceType.charAt(0).toUpperCase() + resourceType.slice(1)}`;
-    const limitValue = plan[planField as keyof typeof plan] as string;
+    let limitValue: number | null;
 
-    // Count current resources
+    // Count current resources and get limit
     switch (resourceType) {
       case 'users':
         currentCount = await prisma.user.count({ where: { tenantId, deleted: false } });
+        limitValue = plan.maxUsers;
         break;
       case 'branches':
         currentCount = await prisma.branch.count({ where: { tenantId, deleted: false } });
+        limitValue = plan.maxBranches;
         break;
       case 'products':
         currentCount = await prisma.product.count({ where: { tenantId, deleted: false } });
+        limitValue = plan.maxProducts;
         break;
     }
 
-    // Check if unlimited
-    if (limitValue.toLowerCase().includes('unlimited')) {
+    // Check if unlimited (null value)
+    if (limitValue === null) {
       return { allowed: true, currentCount, maxAllowed: 'unlimited', planName: plan.name };
     }
 
-    const maxAllowed = parseInt(limitValue) || 0;
-    const allowed = currentCount < maxAllowed;
-
-    return { allowed, currentCount, maxAllowed, planName: plan.name };
+    const allowed = currentCount < limitValue;
+    return { allowed, currentCount, maxAllowed: limitValue, planName: plan.name };
   }
 
   static async enforceLimit(tenantId: string, resourceType: ResourceType): Promise<void> {

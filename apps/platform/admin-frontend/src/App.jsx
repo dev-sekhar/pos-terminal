@@ -7,6 +7,8 @@ import Dashboard from './pages/Dashboard';
 import Tenants from './pages/Tenants';
 import Users from './pages/Users';
 import Billing from './pages/Billing';
+import Payments from './pages/Payments';
+import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
@@ -51,6 +53,16 @@ function App() {
           <Route path="/billing/:tenantId" element={
             <ProtectedRoute>
               <Billing />
+            </ProtectedRoute>
+          } />
+          <Route path="/payments" element={
+            <ProtectedRoute>
+              <Payments />
+            </ProtectedRoute>
+          } />
+          <Route path="/reports" element={
+            <ProtectedRoute>
+              <Reports />
             </ProtectedRoute>
           } />
           <Route path="/settings" element={

@@ -5,6 +5,7 @@ import { getUserPermissions } from '@pos-terminal/permissions';
 import prisma from '../lib/prisma'; // FIX 1: Use the shared prisma client
 import { AuthenticatedRequest } from '../types/express'; // FIX 2: Import the AuthenticatedRequest type
 import { ClientLoginResponse } from '../types/auth';
+import { checkPaymentStatus } from '../middleware/paymentStatusMiddleware';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
@@ -25,36 +26,14 @@ export const login = async (req: Request, res: Response) => {
       return res.status(403).json({ message: 'Account suspended. Please contact support.' });
     }
 
-    // Check for overdue payments and grace period
-    const overdueInvoices = await prisma.invoice.findMany({
-      where: {
-        tenantId: tenant.id,
-        status: { in: ['PENDING', 'OVERDUE'] },
-        dueDate: { lt: new Date() }
-      },
-      include: { payments: true }
-    });
-
-    if (overdueInvoices.length > 0) {
-      const settings = await prisma.systemSettings.findFirst();
-      const graceDays = settings?.paymentGraceDays || 7;
-      
-      const oldestOverdue = overdueInvoices.reduce((oldest, invoice) => 
-        invoice.dueDate < oldest.dueDate ? invoice : oldest
-      );
-      
-      const daysPastDue = Math.floor(
-        (new Date().getTime() - new Date(oldestOverdue.dueDate).getTime()) / (1000 * 60 * 60 * 24)
-      );
-      
-      if (daysPastDue > graceDays) {
-        // Auto-deactivate tenant
-        await prisma.tenant.update({
-          where: { id: tenant.id },
-          data: { active: false }
-        });
-        return res.status(403).json({ message: 'Account suspended due to overdue payments. Please contact support.' });
-      }
+    // Check payment status using new three-tier system
+    const paymentStatus = await checkPaymentStatus(tenant.id);
+    
+    if (!paymentStatus.canLogin) {
+      return res.status(403).json({ 
+        message: paymentStatus.message || 'Please contact support to enable login',
+        paymentStatus 
+      });
     }
     
     // In our schema, the User's tenantId is a string, matching the Tenant's ID type.
@@ -82,28 +61,29 @@ export const login = async (req: Request, res: Response) => {
 
     const { password: _, ...userResponse } = user;
 
-    // Check for payment alerts
+    // Get payment alert information
     let paymentAlert = null;
-    if (overdueInvoices.length > 0) {
+    if (paymentStatus.daysPastDue > 0) {
+      const overdueInvoices = await prisma.invoice.findMany({
+        where: {
+          tenantId: tenant.id,
+          status: { in: ['PENDING', 'OVERDUE'] },
+          dueDate: { lt: new Date() }
+        },
+        include: { payments: true }
+      });
+      
       const totalOverdue = overdueInvoices.reduce((sum, invoice) => {
         const paid = invoice.payments.reduce((pSum, payment) => pSum + payment.amount, 0);
         return sum + (invoice.amount - paid);
       }, 0);
       
-      const settings = await prisma.systemSettings.findFirst();
-      const graceDays = settings?.paymentGraceDays || 7;
-      const oldestOverdue = overdueInvoices.reduce((oldest, invoice) => 
-        invoice.dueDate < oldest.dueDate ? invoice : oldest
-      );
-      const daysPastDue = Math.floor(
-        (new Date().getTime() - new Date(oldestOverdue.dueDate).getTime()) / (1000 * 60 * 60 * 24)
-      );
-      const daysRemaining = graceDays - daysPastDue;
-      
       paymentAlert = {
         totalOverdue,
-        daysRemaining: Math.max(0, daysRemaining),
-        isUrgent: daysRemaining <= 2
+        daysPastDue: paymentStatus.daysPastDue,
+        stage: paymentStatus.stage,
+        canEdit: paymentStatus.canEdit,
+        isUrgent: paymentStatus.stage !== 'normal'
       };
     }
 
@@ -112,6 +92,7 @@ export const login = async (req: Request, res: Response) => {
       user: userResponse,
       tenant,
       paymentAlert,
+      paymentStatus
     } as ClientLoginResponse);
 
   } catch (error) {

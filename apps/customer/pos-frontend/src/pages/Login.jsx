@@ -44,12 +44,26 @@ const Login = () => {
     storage.setItem("tenantName", data.tenant.name);
     storage.setItem("user", JSON.stringify(data.user));
     
+    // Store payment status for frontend use
+    if (data.paymentStatus) {
+      storage.setItem("paymentStatus", JSON.stringify(data.paymentStatus));
+    }
+    if (data.paymentAlert) {
+      storage.setItem("paymentAlert", JSON.stringify(data.paymentAlert));
+    }
+    
     // Also store in localStorage for context to work properly
     if (!rememberMe) {
       localStorage.setItem("token", data.token);
       localStorage.setItem("tenantId", data.tenant.id);
       localStorage.setItem("tenantName", data.tenant.name);
       localStorage.setItem("user", JSON.stringify(data.user));
+      if (data.paymentStatus) {
+        localStorage.setItem("paymentStatus", JSON.stringify(data.paymentStatus));
+      }
+      if (data.paymentAlert) {
+        localStorage.setItem("paymentAlert", JSON.stringify(data.paymentAlert));
+      }
     }
 
     // Update global context state. This will trigger the useEffect hook.
@@ -118,12 +132,22 @@ const Login = () => {
           }
         />
         {loginError && (
-          <Alert severity="error" sx={{ mt: 1 }}>
+          <Alert 
+            severity={loginError.includes("Please contact support") ? "warning" : "error"} 
+            sx={{ mt: 1 }}
+          >
             {loginError}
             {loginError.includes("Tenant not found") && (
               <Box sx={{ mt: 1 }}>
                 <Typography variant="body2">
                   This subdomain is not registered. Would you like to create a new account?
+                </Typography>
+              </Box>
+            )}
+            {loginError.includes("Please contact support") && (
+              <Box sx={{ mt: 1 }}>
+                <Typography variant="body2">
+                  Your account has overdue payments. Please contact our support team to restore access.
                 </Typography>
               </Box>
             )}

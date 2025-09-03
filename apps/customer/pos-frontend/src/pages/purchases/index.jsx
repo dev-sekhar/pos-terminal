@@ -14,6 +14,8 @@ import PurchasesTable from "./PurchasesTable";
 import NewPurchaseDialog from "./NewPurchaseDialog";
 import PrintLayout from "../../components/PrintLayout";
 import SearchBar from "../../components/SearchBar";
+import ReadOnlyAlert from "../../components/ReadOnlyAlert";
+import { usePaymentStatus } from "../../hooks/usePaymentStatus";
 import "../../styles/PrintLayout.css";
 
 const Purchases = () => {
@@ -24,6 +26,7 @@ const Purchases = () => {
     error: settingsError,
   } = useSettings();
   const { branch, branches, loading: branchLoading } = useBranch();
+  const { canEdit } = usePaymentStatus();
 
   const [purchases, setPurchases] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
@@ -164,11 +167,13 @@ const Purchases = () => {
         <Button
           variant="contained"
           onClick={() => setOpen(true)}
-          disabled={loading || branchLoading}
+          disabled={loading || branchLoading || !canEdit}
         >
           New Purchase
         </Button>
       </Box>
+
+      <ReadOnlyAlert />
 
       <SearchBar 
         searchTerm={searchTerm}
@@ -183,7 +188,8 @@ const Purchases = () => {
         expanded={expanded}
         onExpandClick={handleExpandClick}
         onPrint={handlePrint}
-        onDelete={handleDelete}
+        onDelete={canEdit ? handleDelete : null}
+        canEdit={canEdit}
       />
 
       <NewPurchaseDialog

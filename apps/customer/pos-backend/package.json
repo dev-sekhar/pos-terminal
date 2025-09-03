@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "npx ts-node-dev --respawn --transpile-only src/app.ts",
     "build": "npx tsc",
-    "start": "node dist/app.js"
+    "start": "node dist/app.js",
+    "seed": "npx ts-node prisma/seed-employee.js"
   },
   "dependencies": {
     "@pos-terminal/permissions": "1.0.0",
@@ -18,7 +19,9 @@
     "express-list-endpoints": "^7.1.0",
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
-    "yup": "^1.4.0"
+    "yup": "^1.4.0",
+    "stripe": "^16.0.0",
+    "node-cron": "^3.0.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

@@ -118,9 +118,15 @@ app.patch('/api/tenants/:id/toggle', authenticateToken, async (req, res) => {
       return res.status(404).json({ message: 'Tenant not found' });
     }
 
+    // Set plan start date when activating tenant if not set
+    const updateData = { active: !tenant.active };
+    if (!tenant.active && !tenant.currentPlanStartDate) {
+      updateData.currentPlanStartDate = new Date();
+    }
+
     const updatedTenant = await prisma.tenant.update({
       where: { id },
-      data: { active: !tenant.active }
+      data: updateData
     });
 
     res.json(updatedTenant);
@@ -138,7 +144,10 @@ app.get('/api/tenants/:id/billing', authenticateToken, async (req, res) => {
     const [tenant, invoices] = await Promise.all([
       prisma.tenant.findUnique({
         where: { id },
-        include: { pricingPlan: true }
+        include: { 
+          pricingPlan: true,
+          nextPlan: true
+        }
       }),
       prisma.invoice.findMany({
         where: { tenantId: id },
@@ -206,7 +215,11 @@ app.get('/api/settings', authenticateToken, async (req, res) => {
     let settings = await prisma.systemSettings.findFirst();
     if (!settings) {
       settings = await prisma.systemSettings.create({
-        data: { paymentGraceDays: 7 }
+        data: { 
+          paymentGraceDays: 7,
+          readOnlyGraceDays: 14,
+          loginBlockGraceDays: 21
+        }
       });
     }
     res.json(settings);
@@ -218,17 +231,17 @@ app.get('/api/settings', authenticateToken, async (req, res) => {
 
 app.patch('/api/settings', authenticateToken, async (req, res) => {
   try {
-    const { paymentGraceDays } = req.body;
+    const { paymentGraceDays, readOnlyGraceDays, loginBlockGraceDays } = req.body;
     
     let settings = await prisma.systemSettings.findFirst();
     if (!settings) {
       settings = await prisma.systemSettings.create({
-        data: { paymentGraceDays }
+        data: { paymentGraceDays, readOnlyGraceDays, loginBlockGraceDays }
       });
     } else {
       settings = await prisma.systemSettings.update({
         where: { id: settings.id },
-        data: { paymentGraceDays }
+        data: { paymentGraceDays, readOnlyGraceDays, loginBlockGraceDays }
       });
     }
     
@@ -298,6 +311,273 @@ app.delete('/api/employees/:id', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error deleting employee:', error);
     res.status(500).json({ message: 'Failed to delete employee' });
+  }
+});
+
+// Pricing plans endpoints
+app.get('/api/pricing-plans', authenticateToken, async (req, res) => {
+  try {
+    const plans = await prisma.pricingPlan.findMany({
+      where: { active: true },
+      orderBy: { id: 'asc' }
+    });
+    res.json(plans);
+  } catch (error) {
+    console.error('Error fetching pricing plans:', error);
+    res.status(500).json({ message: 'Failed to fetch pricing plans' });
+  }
+});
+
+// Get outstanding invoices by year
+app.get('/api/invoices/outstanding', authenticateToken, async (req, res) => {
+  try {
+    const year = parseInt(req.query.year) || new Date().getFullYear();
+    const startDate = new Date(year, 0, 1);
+    const endDate = new Date(year, 11, 31);
+    
+    const invoices = await prisma.invoice.findMany({
+      where: {
+        status: { in: ['PENDING', 'OVERDUE'] },
+        createdAt: { gte: startDate, lte: endDate }
+      },
+      include: {
+        tenant: true,
+        pricingPlan: true,
+        payments: true
+      },
+      orderBy: { dueDate: 'asc' }
+    });
+    res.json(invoices);
+  } catch (error) {
+    console.error('Error fetching outstanding invoices:', error);
+    res.status(500).json({ message: 'Failed to fetch outstanding invoices' });
+  }
+});
+
+// Get paid payments by year
+app.get('/api/payments/paid', authenticateToken, async (req, res) => {
+  try {
+    const year = parseInt(req.query.year) || new Date().getFullYear();
+    const startDate = new Date(year, 0, 1);
+    const endDate = new Date(year, 11, 31);
+    
+    const payments = await prisma.payment.findMany({
+      where: {
+        paymentDate: { gte: startDate, lte: endDate }
+      },
+      include: {
+        invoice: {
+          include: {
+            tenant: true,
+            pricingPlan: true
+          }
+        }
+      },
+      orderBy: { paymentDate: 'desc' }
+    });
+    res.json(payments);
+  } catch (error) {
+    console.error('Error fetching paid payments:', error);
+    res.status(500).json({ message: 'Failed to fetch paid payments' });
+  }
+});
+
+app.patch('/api/pricing-plans/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, price, currency, maxUsers, maxBranches, maxProducts } = req.body;
+    
+    const updatedPlan = await prisma.pricingPlan.update({
+      where: { id: parseInt(id) },
+      data: {
+        name,
+        price: price === '' ? null : price,
+        currency,
+        maxUsers: maxUsers === '' ? null : maxUsers,
+        maxBranches: maxBranches === '' ? null : maxBranches,
+        maxProducts: maxProducts === '' ? null : maxProducts
+      }
+    });
+    
+    res.json(updatedPlan);
+  } catch (error) {
+    console.error('Error updating pricing plan:', error);
+    res.status(500).json({ message: 'Failed to update pricing plan' });
+  }
+});
+
+// Update tenant pricing plan
+app.patch('/api/tenants/:id/plan', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { pricingPlanId } = req.body;
+    
+    const tenant = await prisma.tenant.findUnique({
+      where: { id }
+    });
+
+    if (!tenant) {
+      return res.status(404).json({ message: 'Tenant not found' });
+    }
+
+    const updateData = { pricingPlanId: parseInt(pricingPlanId) };
+    
+    // Set currentPlanStartDate if not already set or if changing from no plan
+    if (!tenant.currentPlanStartDate || !tenant.pricingPlanId) {
+      updateData.currentPlanStartDate = new Date();
+    }
+
+    const updatedTenant = await prisma.tenant.update({
+      where: { id },
+      data: updateData
+    });
+
+    res.json(updatedTenant);
+  } catch (error) {
+    console.error('Error updating tenant plan:', error);
+    res.status(500).json({ message: 'Failed to update tenant plan' });
+  }
+});
+
+// Change tenant plan
+app.patch('/api/tenants/:id/change-plan', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { newPlanId, activationDate } = req.body;
+    
+    console.log('Change plan request:', { id, newPlanId, activationDate });
+    
+    const tenant = await prisma.tenant.findUnique({
+      where: { id },
+      include: { pricingPlan: true }
+    });
+
+    if (!tenant) {
+      return res.status(404).json({ message: 'Tenant not found' });
+    }
+
+    const activationDateTime = new Date(activationDate);
+    
+    // Calculate current plan end date (end of current billing cycle)
+    let currentPlanEndDate = null;
+    if (tenant.currentPlanStartDate) {
+      const startDate = new Date(tenant.currentPlanStartDate);
+      const now = new Date();
+      const monthsDiff = (now.getFullYear() - startDate.getFullYear()) * 12 + (now.getMonth() - startDate.getMonth());
+      
+      currentPlanEndDate = new Date(startDate);
+      currentPlanEndDate.setMonth(startDate.getMonth() + monthsDiff + 1);
+      currentPlanEndDate.setDate(currentPlanEndDate.getDate() - 1);
+    }
+
+    console.log('Update data:', {
+      nextPlanId: parseInt(newPlanId),
+      nextPlanActivationDate: activationDateTime,
+      currentPlanEndDate
+    });
+
+    const updatedTenant = await prisma.tenant.update({
+      where: { id },
+      data: {
+        nextPlanId: parseInt(newPlanId),
+        nextPlanActivationDate: activationDateTime,
+        currentPlanEndDate
+      }
+    });
+
+    console.log('Updated tenant:', updatedTenant);
+    res.json(updatedTenant);
+  } catch (error) {
+    console.error('Error changing tenant plan:', error);
+    res.status(500).json({ message: 'Failed to change tenant plan' });
+  }
+});
+
+// Manual invoice generation endpoint
+app.post('/api/generate-invoices', authenticateToken, async (req, res) => {
+  try {
+    const { generateMonthlyInvoices } = await import('../../../customer/pos-backend/src/services/invoiceGenerationService.ts');
+    const result = await generateMonthlyInvoices();
+    res.json(result);
+  } catch (error) {
+    console.error('Error generating invoices:', error);
+    res.status(500).json({ message: 'Failed to generate invoices' });
+  }
+});
+
+// Generate invoice for specific tenant
+app.post('/api/tenants/:id/generate-invoice', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const tenant = await prisma.tenant.findUnique({
+      where: { id },
+      include: { pricingPlan: true }
+    });
+
+    if (!tenant) {
+      return res.status(404).json({ message: 'Tenant not found' });
+    }
+
+    if (!tenant.pricingPlan || tenant.pricingPlan.price === null || tenant.pricingPlan.price === 0) {
+      return res.status(400).json({ message: 'Cannot generate invoice for free or contact-us plans' });
+    }
+
+    // Set plan start date if not set
+    let planStartDate = tenant.currentPlanStartDate;
+    if (!planStartDate) {
+      planStartDate = new Date();
+      await prisma.tenant.update({
+        where: { id },
+        data: { currentPlanStartDate: planStartDate }
+      });
+    }
+
+    // Calculate current billing period
+    const now = new Date();
+    const billingStart = new Date(planStartDate);
+    const monthsDiff = (now.getFullYear() - billingStart.getFullYear()) * 12 + (now.getMonth() - billingStart.getMonth());
+    
+    const currentPeriodStart = new Date(billingStart);
+    currentPeriodStart.setMonth(billingStart.getMonth() + monthsDiff);
+    
+    const currentPeriodEnd = new Date(currentPeriodStart);
+    currentPeriodEnd.setMonth(currentPeriodStart.getMonth() + 1);
+    currentPeriodEnd.setDate(currentPeriodEnd.getDate() - 1);
+
+    // Check if invoice already exists for current period
+    const existingInvoice = await prisma.invoice.findFirst({
+      where: {
+        tenantId: id,
+        createdAt: {
+          gte: currentPeriodStart,
+          lte: currentPeriodEnd
+        }
+      }
+    });
+
+    if (existingInvoice) {
+      return res.status(400).json({ message: 'Invoice already exists for current billing period' });
+    }
+
+    const dueDate = new Date(currentPeriodEnd);
+    dueDate.setDate(dueDate.getDate() + 15); // 15 days after period end
+
+    const invoice = await prisma.invoice.create({
+      data: {
+        tenantId: id,
+        planId: tenant.pricingPlanId,
+        amount: tenant.pricingPlan.price,
+        dueDate,
+        description: `${tenant.pricingPlan.name} plan - ${currentPeriodStart.toLocaleDateString()} to ${currentPeriodEnd.toLocaleDateString()}`,
+        status: 'PENDING'
+      }
+    });
+
+    res.json({ message: 'Invoice generated successfully', invoice });
+  } catch (error) {
+    console.error('Error generating invoice:', error);
+    res.status(500).json({ message: 'Failed to generate invoice' });
   }
 });
 

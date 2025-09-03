@@ -34,6 +34,8 @@ import { useUser } from "../context/UserContext";
 import { useSettings } from "../context/SettingsContext";
 import { authenticatedFetch } from "../utils/api";
 import SearchBar from "../components/SearchBar";
+import ReadOnlyAlert from "../components/ReadOnlyAlert";
+import { usePaymentStatus } from "../hooks/usePaymentStatus";
 
 const initialFormState = {
   name: "",
@@ -51,6 +53,7 @@ const Products = () => {
     loading: settingsLoading,
     error: settingsError,
   } = useSettings();
+  const { canEdit } = usePaymentStatus();
   
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -236,7 +239,7 @@ const Products = () => {
     return <Alert severity="error">{error || settingsError}</Alert>;
   if (!loggedInUser) return null;
 
-  const canManage = loggedInUser.role === "ADMIN";
+  const canManage = loggedInUser.role === "ADMIN" && canEdit;
   
   const isAtLimit = planLimits?.products && 
     planLimits.products.maxAllowed !== 'unlimited' && 
@@ -280,13 +283,13 @@ const Products = () => {
         mb={2}
       >
         <Typography variant="h4">Products</Typography>
-        {canManage && (
+        {loggedInUser.role === "ADMIN" && (
           <Box>
             <Button
               variant="contained"
               onClick={() => handleOpen()}
               sx={{ mr: 1 }}
-              disabled={isAtLimit}
+              disabled={isAtLimit || !canEdit}
             >
               Add Product
             </Button>
@@ -294,13 +297,15 @@ const Products = () => {
               variant="outlined"
               onClick={handleImportOpen}
               startIcon={<UploadIcon />}
-              disabled={isAtLimit}
+              disabled={isAtLimit || !canEdit}
             >
               Import
             </Button>
           </Box>
         )}
       </Box>
+      
+      <ReadOnlyAlert />
       
       {planLimits?.products && (
         <Alert severity={isAtLimit ? "warning" : "info"} sx={{ mb: 2 }}>
@@ -348,14 +353,18 @@ const Products = () => {
                     <TableCell>
                       {currency} {p.price.toFixed(2)}
                     </TableCell>
-                    {canManage && (
+                    {loggedInUser.role === "ADMIN" && (
                       <TableCell>
-                        <IconButton onClick={() => handleOpen(p)}>
+                        <IconButton 
+                          onClick={() => handleOpen(p)}
+                          disabled={!canEdit}
+                        >
                           <EditIcon />
                         </IconButton>
                         <IconButton
                           onClick={() => handleDelete(p.id)}
                           color="error"
+                          disabled={!canEdit}
                         >
                           <DeleteIcon />
                         </IconButton>

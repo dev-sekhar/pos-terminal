@@ -16,6 +16,8 @@ import SalesTable from "./SalesTable";
 import NewSaleDialog from "./NewSaleDialog";
 import PrintLayout from "../../components/PrintLayout";
 import SearchBar from "../../components/SearchBar";
+import ReadOnlyAlert from "../../components/ReadOnlyAlert";
+import { usePaymentStatus } from "../../hooks/usePaymentStatus";
 import "../../styles/PrintLayout.css";
 import "../../styles/Sales.css";
 
@@ -28,6 +30,7 @@ const Sales = () => {
   } = useSettings();
   const { user } = useUser();
   const { branch, branches, loading: branchLoading } = useBranch();
+  const { canEdit } = usePaymentStatus();
 
   const [sales, setSales] = useState([]);
   const [inventory, setInventory] = useState([]);
@@ -214,10 +217,16 @@ const Sales = () => {
         mb={2}
       >
         <Typography variant="h4">Sales</Typography>
-        <Button variant="contained" onClick={() => setOpen(true)}>
+        <Button 
+          variant="contained" 
+          onClick={() => setOpen(true)}
+          disabled={!canEdit}
+        >
           New Sale
         </Button>
       </Box>
+
+      <ReadOnlyAlert />
 
       <SearchBar 
         searchTerm={searchTerm}
@@ -232,7 +241,8 @@ const Sales = () => {
         expanded={expanded}
         onExpandClick={handleExpandClick}
         onPrint={handlePrint}
-        onDelete={handleDelete}
+        onDelete={canEdit ? handleDelete : null}
+        canEdit={canEdit}
       />
 
       <NewSaleDialog

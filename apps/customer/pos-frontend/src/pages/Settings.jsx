@@ -9,7 +9,7 @@ import {
   ListItem,
   ListItemText,
   IconButton,
-  Grid, // --- CORRECT: Using the standard Grid component
+  Grid,
   Paper,
   Alert,
   CircularProgress,
@@ -21,6 +21,9 @@ import {
   Snackbar,
   FormControlLabel,
   Switch,
+  Card,
+  CardContent,
+  CardActions
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { useSettings } from "../context/SettingsContext";
@@ -56,6 +59,7 @@ const Settings = () => {
   const [newUnit, setNewUnit] = useState("");
   const [newPaymentType, setNewPaymentType] = useState("");
   const [pricingPlans, setPricingPlans] = useState([]);
+  const [tenantDetails, setTenantDetails] = useState(null);
 
   const timezones = useMemo(() => {
     try {
@@ -68,20 +72,37 @@ const Settings = () => {
 
   const isAdmin = user?.role === "ADMIN";
 
-  // Fetch pricing plans
+  // Fetch pricing plans and tenant details
   React.useEffect(() => {
-    const fetchPricingPlans = async () => {
+    const fetchData = async () => {
       try {
-        const response = await fetch('/api/pricing');
-        if (response.ok) {
-          const plans = await response.json();
+        const [plansResponse, tenantResponse] = await Promise.all([
+          fetch('/api/pricing'),
+          fetch('/api/billing/current-plan', {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`,
+              'Content-Type': 'application/json'
+            }
+          })
+        ]);
+        
+        if (plansResponse.ok) {
+          const plans = await plansResponse.json();
           setPricingPlans(plans);
         }
+        
+        if (tenantResponse.ok) {
+          const tenant = await tenantResponse.json();
+          console.log('Initial tenant details loaded:', tenant);
+          setTenantDetails(tenant);
+        } else {
+          console.error('Failed to fetch tenant details:', tenantResponse.status);
+        }
       } catch (error) {
-        console.error('Failed to fetch pricing plans:', error);
+        console.error('Failed to fetch data:', error);
       }
     };
-    fetchPricingPlans();
+    fetchData();
   }, []);
 
   const handleSimpleChange = async (updateData) => {
@@ -266,7 +287,6 @@ const Settings = () => {
       <Paper sx={{ p: 2, mb: 3 }}>
         <Typography variant="h6">Localization</Typography>
         <Grid container spacing={2} sx={{ mt: 0.5 }}>
-          {/* --- FIX: 'item' prop is required for Grid v1 --- */}
           <Grid item xs={12} sm={6} md={4}>
             <TextField
               select
@@ -284,7 +304,6 @@ const Settings = () => {
               ))}
             </TextField>
           </Grid>
-          {/* --- FIX: 'item' prop is required for Grid v1 --- */}
           <Grid item xs={12} sm={6} md={4}>
             <TextField
               select
@@ -369,51 +388,147 @@ const Settings = () => {
       </Paper>
 
       <Paper sx={{ p: 2, mb: 3 }}>
-        <Typography variant="h6">Pricing Plan</Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Select your current pricing plan
+        <Typography variant="h6" gutterBottom>Pricing Plans</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+          Choose your subscription plan
         </Typography>
-        <TextField
-          select
-          label="Current Plan"
-          value={settings.pricingPlanId || ""}
-          onChange={(e) => handleSimpleChange({ pricingPlanId: parseInt(e.target.value) })}
-          sx={{ minWidth: 200 }}
-          disabled={!isAdmin}
-        >
-          {pricingPlans.map((plan) => (
-            <MenuItem key={plan.id} value={plan.id}>
-              {plan.name} - {plan.price}
-            </MenuItem>
-          ))}
-        </TextField>
-        {settings.pricingPlanId && (
-          <Box sx={{ mt: 2 }}>
-            {(() => {
-              const currentPlan = pricingPlans.find(p => p.id === settings.pricingPlanId);
-              return currentPlan ? (
-                <Box>
-                  <Typography variant="subtitle2">Plan Limits:</Typography>
-                  <Typography variant="body2">• Users: {currentPlan.maxUsers}</Typography>
-                  <Typography variant="body2">• Branches: {currentPlan.maxBranches}</Typography>
-                  <Typography variant="body2">• Products: {currentPlan.maxProducts}</Typography>
-                  {currentPlan.features && (
-                    <Box sx={{ mt: 1 }}>
-                      <Typography variant="subtitle2">Features:</Typography>
-                      {currentPlan.features.map((feature, index) => (
-                        <Typography key={index} variant="body2">• {feature}</Typography>
-                      ))}
+        
+        <Grid container spacing={3}>
+          {pricingPlans.map((plan) => {
+            const isCurrentPlan = settings.pricingPlanId === plan.id;
+            const isScheduledPlan = tenantDetails?.nextPlan?.id === plan.id;
+            return (
+              <Grid item xs={12} sm={6} key={plan.id}>
+                <Card 
+                  raised={isCurrentPlan || isScheduledPlan}
+                  sx={{ 
+                    border: isCurrentPlan ? 2 : isScheduledPlan ? 2 : 0, 
+                    borderColor: isCurrentPlan ? 'primary.main' : isScheduledPlan ? 'warning.main' : 'transparent',
+                    position: 'relative'
+                  }}
+                >
+                  {isCurrentPlan && (
+                    <Box 
+                      sx={{ 
+                        position: 'absolute', 
+                        top: 8, 
+                        right: 8, 
+                        bgcolor: 'primary.main', 
+                        color: 'white', 
+                        px: 1, 
+                        py: 0.5, 
+                        borderRadius: 1, 
+                        fontSize: '0.75rem' 
+                      }}
+                    >
+                      Current
                     </Box>
                   )}
-                </Box>
-              ) : null;
-            })()}
-          </Box>
-        )}
+                  {isScheduledPlan && (
+                    <Box 
+                      sx={{ 
+                        position: 'absolute', 
+                        top: 8, 
+                        right: 8, 
+                        bgcolor: 'warning.main', 
+                        color: 'white', 
+                        px: 1, 
+                        py: 0.5, 
+                        borderRadius: 1, 
+                        fontSize: '0.75rem' 
+                      }}
+                    >
+                      Scheduled
+                    </Box>
+                  )}
+                  <CardContent>
+                    <Typography variant="h4" gutterBottom>{plan.name}</Typography>
+                    <Typography variant="h6" gutterBottom>
+                      {plan.price === null ? 'Contact Us' : plan.price === 0 ? 'Free' : `${plan.currency === 'USD' ? '$' : plan.currency}${plan.price}`}
+                      {plan.price !== null && plan.price > 0 && (
+                        <Typography component="span" variant="body2">/{plan.paymentFrequency}</Typography>
+                      )}
+                    </Typography>
+                    
+                    <Typography variant="body2" sx={{ mb: 1 }}>Max Users: {plan.maxUsers === null ? 'Unlimited' : plan.maxUsers}</Typography>
+                    <Typography variant="body2" sx={{ mb: 1 }}>Max Branches: {plan.maxBranches === null ? 'Unlimited' : plan.maxBranches}</Typography>
+                    <Typography variant="body2" sx={{ mb: 2 }}>Max Products: {plan.maxProducts === null ? 'Unlimited' : plan.maxProducts}</Typography>
+                    
+                    {plan.features && (
+                      <Box>
+                        <Typography variant="subtitle2" sx={{ mb: 1 }}>Features:</Typography>
+                        {plan.features.map((feature, index) => (
+                          <Typography key={index} variant="body2" sx={{ fontSize: '0.875rem' }}>• {feature}</Typography>
+                        ))}
+                      </Box>
+                    )}
+                  </CardContent>
+                  <CardActions sx={{ p: 2, pt: 0, flexDirection: 'column', alignItems: 'stretch' }}>
+                    {isCurrentPlan ? (
+                      <Button variant="contained" disabled fullWidth size="large">
+                        Current Plan
+                      </Button>
+                    ) : isScheduledPlan ? (
+                      <>
+                        <Button variant="contained" disabled fullWidth size="large" color="warning">
+                          Change Scheduled
+                        </Button>
+                        {tenantDetails?.nextPlanActivationDate && (
+                          <Typography variant="caption" sx={{ mt: 1, textAlign: 'center', color: 'warning.main' }}>
+                            Activates: {new Date(tenantDetails.nextPlanActivationDate).toLocaleDateString()}
+                          </Typography>
+                        )}
+                      </>
+                    ) : (
+                      <Button 
+                        variant="contained" 
+                        color="primary" 
+                        fullWidth
+                        size="large"
+                        onClick={async () => {
+                          console.log('Scheduling plan change to:', plan.id);
+                          try {
+                            await handleSimpleChange({ pricingPlanId: plan.id });
+                            console.log('Plan change request completed');
+                            
+                            // Add a small delay to ensure backend processing is complete
+                            setTimeout(async () => {
+                              try {
+                                const response = await fetch('/api/billing/current-plan', {
+                                  headers: {
+                                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                                    'Content-Type': 'application/json'
+                                  }
+                                });
+                                if (response.ok) {
+                                  const tenant = await response.json();
+                                  console.log('Refreshed tenant details:', tenant);
+                                  setTenantDetails(tenant);
+                                } else {
+                                  console.error('Failed to fetch updated tenant details:', response.status);
+                                }
+                              } catch (error) {
+                                console.error('Failed to refresh tenant details:', error);
+                              }
+                            }, 500);
+                          } catch (error) {
+                            console.error('Plan change failed:', error);
+                          }
+                        }}
+                        disabled={!isAdmin}
+                      >
+                        {plan.price === null ? 'Contact Sales' : 'Schedule Change'}
+                      </Button>
+                    )}
+                  </CardActions>
+                </Card>
+              </Grid>
+            );
+          })}
+        </Grid>
       </Paper>
 
       <Grid container spacing={3}>
-        {/* --- FIX: 'item' prop is required for Grid v1 --- */}
         <Grid item xs={12} md={6}>
           <Paper sx={{ p: 2, height: "100%" }}>
             <Typography variant="h6">Units of Measurement</Typography>
@@ -454,7 +569,6 @@ const Settings = () => {
             </List>
           </Paper>
         </Grid>
-        {/* --- FIX: 'item' prop is required for Grid v1 --- */}
         <Grid item xs={12} md={6}>
           <Paper sx={{ p: 2, height: "100%" }}>
             <Typography variant="h6">Payment Types</Typography>

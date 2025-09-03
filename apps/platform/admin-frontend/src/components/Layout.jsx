@@ -19,7 +19,8 @@ import {
   People,
   Business,
   Settings,
-  Assessment
+  Assessment,
+  Payment
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 
@@ -34,6 +35,7 @@ const Layout = ({ children }) => {
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
     { text: 'Tenants', icon: <Business />, path: '/tenants' },
     { text: 'Users', icon: <People />, path: '/users' },
+    { text: 'Payments', icon: <Payment />, path: '/payments' },
     { text: 'Reports', icon: <Assessment />, path: '/reports' },
     { text: 'Settings', icon: <Settings />, path: '/settings' },
   ];

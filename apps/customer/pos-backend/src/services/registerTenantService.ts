@@ -14,11 +14,15 @@ export const registerTenant = async (tenantData: any, userData: any) => {
       where: { name: 'Free', active: true }
     });
 
+    // Use selected plan or fall back to Free plan
+    const selectedPlanId = tenantData.pricingPlanId || freePlan?.id;
+    
     const tenant = await tx.tenant.create({ 
       data: { 
         name: tenantData.name, 
         subdomain: tenantData.subdomain,
-        pricingPlanId: freePlan?.id
+        pricingPlanId: selectedPlanId,
+        currentPlanStartDate: new Date()
       } 
     });
 
