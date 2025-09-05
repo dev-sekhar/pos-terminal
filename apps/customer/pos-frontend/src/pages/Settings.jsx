@@ -60,6 +60,9 @@ const Settings = () => {
   const [newPaymentType, setNewPaymentType] = useState("");
   const [pricingPlans, setPricingPlans] = useState([]);
   const [tenantDetails, setTenantDetails] = useState(null);
+  const [globalUnits, setGlobalUnits] = useState([]);
+  const [globalPaymentTypes, setGlobalPaymentTypes] = useState([]);
+  const [globalCurrencies, setGlobalCurrencies] = useState([]);
 
   const timezones = useMemo(() => {
     try {
@@ -72,18 +75,21 @@ const Settings = () => {
 
   const isAdmin = user?.role === "ADMIN";
 
-  // Fetch pricing plans and tenant details
+  // Fetch pricing plans, tenant details, and global data
   React.useEffect(() => {
     const fetchData = async () => {
       try {
-        const [plansResponse, tenantResponse] = await Promise.all([
+        const [plansResponse, tenantResponse, unitsResponse, paymentTypesResponse, currenciesResponse] = await Promise.all([
           fetch('/api/pricing'),
           fetch('/api/billing/current-plan', {
             headers: {
               'Authorization': `Bearer ${localStorage.getItem('token')}`,
               'Content-Type': 'application/json'
             }
-          })
+          }),
+          fetch('/api/global/units'),
+          fetch('/api/global/payment-types'),
+          fetch('/api/global/currencies')
         ]);
         
         if (plansResponse.ok) {
@@ -97,6 +103,21 @@ const Settings = () => {
           setTenantDetails(tenant);
         } else {
           console.error('Failed to fetch tenant details:', tenantResponse.status);
+        }
+
+        if (unitsResponse.ok) {
+          const units = await unitsResponse.json();
+          setGlobalUnits(units);
+        }
+
+        if (paymentTypesResponse.ok) {
+          const paymentTypes = await paymentTypesResponse.json();
+          setGlobalPaymentTypes(paymentTypes);
+        }
+
+        if (currenciesResponse.ok) {
+          const currencies = await currenciesResponse.json();
+          setGlobalCurrencies(currencies);
         }
       } catch (error) {
         console.error('Failed to fetch data:', error);
@@ -297,9 +318,9 @@ const Settings = () => {
               fullWidth
               disabled={!isAdmin}
             >
-              {defaultCurrencies.map((cur) => (
-                <MenuItem key={cur} value={cur}>
-                  {cur}
+              {globalCurrencies.map((currency) => (
+                <MenuItem key={currency.id} value={currency.code}>
+                  {currency.code} - {currency.name} ({currency.symbol})
                 </MenuItem>
               ))}
             </TextField>
@@ -532,19 +553,30 @@ const Settings = () => {
         <Grid item xs={12} md={6}>
           <Paper sx={{ p: 2, height: "100%" }}>
             <Typography variant="h6">Units of Measurement</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Select from available units (managed by admin)
+            </Typography>
             <Box display="flex" alignItems="center" mt={1}>
               <TextField
+                select
                 label="Add Unit"
                 value={newUnit}
                 onChange={(e) => setNewUnit(e.target.value)}
                 size="small"
                 disabled={!isAdmin}
-              />
+                sx={{ minWidth: 200 }}
+              >
+                {globalUnits.filter(unit => !settings.units?.includes(unit.name)).map((unit) => (
+                  <MenuItem key={unit.id} value={unit.name}>
+                    {unit.name}
+                  </MenuItem>
+                ))}
+              </TextField>
               <Button
                 variant="contained"
                 onClick={handleAddUnit}
                 sx={{ ml: 1 }}
-                disabled={!isAdmin}
+                disabled={!isAdmin || !newUnit}
               >
                 Add
               </Button>
@@ -572,19 +604,30 @@ const Settings = () => {
         <Grid item xs={12} md={6}>
           <Paper sx={{ p: 2, height: "100%" }}>
             <Typography variant="h6">Payment Types</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Select from available payment types (managed by admin)
+            </Typography>
             <Box display="flex" alignItems="center" mt={1}>
               <TextField
+                select
                 label="Add Payment Type"
                 value={newPaymentType}
                 onChange={(e) => setNewPaymentType(e.target.value)}
                 size="small"
                 disabled={!isAdmin}
-              />
+                sx={{ minWidth: 200 }}
+              >
+                {globalPaymentTypes.filter(type => !settings.paymentTypes?.includes(type.name)).map((type) => (
+                  <MenuItem key={type.id} value={type.name}>
+                    {type.name}
+                  </MenuItem>
+                ))}
+              </TextField>
               <Button
                 variant="contained"
                 onClick={handleAddPaymentType}
                 sx={{ ml: 1 }}
-                disabled={!isAdmin}
+                disabled={!isAdmin || !newPaymentType}
               >
                 Add
               </Button>

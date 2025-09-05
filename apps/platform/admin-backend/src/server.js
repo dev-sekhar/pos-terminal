@@ -252,8 +252,172 @@ app.patch('/api/settings', authenticateToken, async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+// Currencies endpoints
+app.get('/api/currencies', authenticateToken, async (req, res) => {
+  try {
+    const currencies = await prisma.currency.findMany({
+      where: { active: true },
+      orderBy: { name: 'asc' }
+    });
+    res.json(currencies);
+  } catch (error) {
+    console.error('Error fetching currencies:', error);
+    res.status(500).json({ message: 'Failed to fetch currencies' });
+  }
+});
+
+app.post('/api/currencies', authenticateToken, async (req, res) => {
+  try {
+    const { code, name, symbol } = req.body;
+    const currency = await prisma.currency.create({
+      data: { code, name, symbol }
+    });
+    res.json(currency);
+  } catch (error) {
+    console.error('Error creating currency:', error);
+    res.status(500).json({ message: 'Failed to create currency' });
+  }
+});
+
+// Units endpoints
+app.get('/api/units', authenticateToken, async (req, res) => {
+  try {
+    const units = await prisma.unit.findMany({
+      where: { active: true },
+      orderBy: { name: 'asc' }
+    });
+    res.json(units);
+  } catch (error) {
+    console.error('Error fetching units:', error);
+    res.status(500).json({ message: 'Failed to fetch units' });
+  }
+});
+
+app.post('/api/units', authenticateToken, async (req, res) => {
+  try {
+    const { name } = req.body;
+    const unit = await prisma.unit.create({
+      data: { name }
+    });
+    res.json(unit);
+  } catch (error) {
+    console.error('Error creating unit:', error);
+    res.status(500).json({ message: 'Failed to create unit' });
+  }
+});
+
+app.put('/api/units/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, active } = req.body;
+    const updatedUnit = await prisma.unit.update({
+      where: { id: parseInt(id) },
+      data: { name, active }
+    });
+    res.json(updatedUnit);
+  } catch (error) {
+    console.error('Error updating unit:', error);
+    res.status(500).json({ message: 'Failed to update unit' });
+  }
+});
+
+app.delete('/api/units/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await prisma.unit.update({ where: { id: parseInt(id) }, data: { active: false } });
+    res.status(204).send();
+  } catch (error) {
+    console.error('Error deleting unit:', error);
+    res.status(500).json({ message: 'Failed to delete unit' });
+  }
+});
+
+// Payment Types endpoints
+app.get('/api/payment-types', authenticateToken, async (req, res) => {
+  try {
+    const paymentTypes = await prisma.paymentType.findMany({
+      where: { active: true },
+      orderBy: { name: 'asc' }
+    });
+    res.json(paymentTypes);
+  } catch (error) {
+    console.error('Error fetching payment types:', error);
+    res.status(500).json({ message: 'Failed to fetch payment types' });
+  }
+});
+
+app.post('/api/payment-types', authenticateToken, async (req, res) => {
+  try {
+    const { name } = req.body;
+    const paymentType = await prisma.paymentType.create({
+      data: { name }
+    });
+    res.json(paymentType);
+  } catch (error) {
+    console.error('Error creating payment type:', error);
+    res.status(500).json({ message: 'Failed to create payment type' });
+  }
+});
+
+app.put('/api/payment-types/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, active } = req.body;
+    const updatedPaymentType = await prisma.paymentType.update({
+      where: { id: parseInt(id) },
+      data: { name, active }
+    });
+    res.json(updatedPaymentType);
+  } catch (error) {
+    console.error('Error updating payment type:', error);
+    res.status(500).json({ message: 'Failed to update payment type' });
+  }
+});
+
+app.delete('/api/payment-types/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await prisma.paymentType.update({ where: { id: parseInt(id) }, data: { active: false } });
+    res.status(204).send();
+  } catch (error) {
+    console.error('Error deleting payment type:', error);
+    res.status(500).json({ message: 'Failed to delete payment type' });
+  }
+});
+
+const server = app.listen(PORT, () => {
   console.log(`Admin backend running on port ${PORT}`);
+});
+
+// Graceful shutdown handling
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully');
+  server.close(() => {
+    console.log('Process terminated');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, shutting down gracefully');
+  server.close(() => {
+    console.log('Process terminated');
+    process.exit(0);
+  });
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+  server.close(() => {
+    process.exit(1);
+  });
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  server.close(() => {
+    process.exit(1);
+  });
 });
 
 // Employee CRUD endpoints
@@ -490,6 +654,112 @@ app.patch('/api/tenants/:id/change-plan', authenticateToken, async (req, res) =>
   } catch (error) {
     console.error('Error changing tenant plan:', error);
     res.status(500).json({ message: 'Failed to change tenant plan' });
+  }
+});
+
+// Units endpoints
+app.get('/api/units', authenticateToken, async (req, res) => {
+  try {
+    const units = await prisma.unit.findMany({
+      where: { active: true },
+      orderBy: { name: 'asc' }
+    });
+    res.json(units);
+  } catch (error) {
+    console.error('Error fetching units:', error);
+    res.status(500).json({ message: 'Failed to fetch units' });
+  }
+});
+
+app.post('/api/units', authenticateToken, async (req, res) => {
+  try {
+    const { name } = req.body;
+    const unit = await prisma.unit.create({
+      data: { name }
+    });
+    res.json(unit);
+  } catch (error) {
+    console.error('Error creating unit:', error);
+    res.status(500).json({ message: 'Failed to create unit' });
+  }
+});
+
+app.put('/api/units/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, active } = req.body;
+    const updatedUnit = await prisma.unit.update({
+      where: { id: parseInt(id) },
+      data: { name, active }
+    });
+    res.json(updatedUnit);
+  } catch (error) {
+    console.error('Error updating unit:', error);
+    res.status(500).json({ message: 'Failed to update unit' });
+  }
+});
+
+app.delete('/api/units/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await prisma.unit.update({ where: { id: parseInt(id) }, data: { active: false } });
+    res.status(204).send();
+  } catch (error) {
+    console.error('Error deleting unit:', error);
+    res.status(500).json({ message: 'Failed to delete unit' });
+  }
+});
+
+// Payment Types endpoints
+app.get('/api/payment-types', authenticateToken, async (req, res) => {
+  try {
+    const paymentTypes = await prisma.paymentType.findMany({
+      where: { active: true },
+      orderBy: { name: 'asc' }
+    });
+    res.json(paymentTypes);
+  } catch (error) {
+    console.error('Error fetching payment types:', error);
+    res.status(500).json({ message: 'Failed to fetch payment types' });
+  }
+});
+
+app.post('/api/payment-types', authenticateToken, async (req, res) => {
+  try {
+    const { name } = req.body;
+    const paymentType = await prisma.paymentType.create({
+      data: { name }
+    });
+    res.json(paymentType);
+  } catch (error) {
+    console.error('Error creating payment type:', error);
+    res.status(500).json({ message: 'Failed to create payment type' });
+  }
+});
+
+app.put('/api/payment-types/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, active } = req.body;
+    const updatedPaymentType = await prisma.paymentType.update({
+      where: { id: parseInt(id) },
+      data: { name, active }
+    });
+    res.json(updatedPaymentType);
+  } catch (error) {
+    console.error('Error updating payment type:', error);
+    res.status(500).json({ message: 'Failed to update payment type' });
+  }
+});
+
+app.delete('/api/payment-types/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await prisma.paymentType.update({ where: { id: parseInt(id) }, data: { active: false } });
+    res.status(204).send();
+  } catch (error) {
+    console.error('Error deleting payment type:', error);
+    res.status(500).json({ message: 'Failed to delete payment type' });
   }
 });
 

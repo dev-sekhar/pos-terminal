@@ -104,6 +104,49 @@ app.use('/api/billing', protectedMiddleware, billingRoutes); // New billing rout
 // Protected pricing endpoints (limits) - read-only, no edit blocking needed
 app.use('/api/pricing', [authMiddleware, tenantMiddleware], pricingRoutes);
 
+// Global data endpoints (no auth needed for these reference data)
+app.get('/api/global/units', async (req, res) => {
+  try {
+    const prisma = new PrismaClient();
+    const units = await prisma.unit.findMany({
+      where: { active: true },
+      orderBy: { name: 'asc' }
+    });
+    await prisma.$disconnect();
+    res.json(units);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch units' });
+  }
+});
+
+app.get('/api/global/payment-types', async (req, res) => {
+  try {
+    const prisma = new PrismaClient();
+    const paymentTypes = await prisma.paymentType.findMany({
+      where: { active: true },
+      orderBy: { name: 'asc' }
+    });
+    await prisma.$disconnect();
+    res.json(paymentTypes);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch payment types' });
+  }
+});
+
+app.get('/api/global/currencies', async (req, res) => {
+  try {
+    const prisma = new PrismaClient();
+    const currencies = await prisma.currency.findMany({
+      where: { active: true },
+      orderBy: { code: 'asc' }
+    });
+    await prisma.$disconnect();
+    res.json(currencies);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch currencies' });
+  }
+});
+
 // --- GLOBAL ERROR HANDLER (must be last) ---
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   console.error('Error:', err);
@@ -135,7 +178,7 @@ import { startCronJobs } from './jobs/cronJobs'; // New import
 
 // --- LIST ENDPOINTS & START SERVER ---
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
   try {
     console.log('--- Registered API Endpoints ---');
@@ -145,6 +188,37 @@ app.listen(PORT, () => {
     console.log("Could not display endpoints.", e);
   }
   startCronJobs(); // Start cron jobs for invoice generation
+});
+
+// Graceful shutdown handling
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully');
+  server.close(() => {
+    console.log('Process terminated');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, shutting down gracefully');
+  server.close(() => {
+    console.log('Process terminated');
+    process.exit(0);
+  });
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+  server.close(() => {
+    process.exit(1);
+  });
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  server.close(() => {
+    process.exit(1);
+  });
 });
 
 export default app;

@@ -58,7 +58,9 @@ export const getDashboardMetrics = async (requestingUser: UserContextPayload) =>
     salesFYTDData,
     topProductsTodayData,
     topProductsMonthData,
-    topProductsYearData
+    topProductsYearData,
+    salesByBranchData,
+    salesBySalespersonData
   ] = await Promise.all([
     prisma.sale.aggregate({
       _sum: { total: true },
@@ -95,6 +97,22 @@ export const getDashboardMetrics = async (requestingUser: UserContextPayload) =>
         orderBy: { _sum: { quantity: 'desc' } },
         take: 5
     }),
+    // Sales by branch (only for admins, managers see their own branch)
+    role === Role.ADMIN ? prisma.sale.groupBy({
+      by: ['branchId'],
+      _sum: { total: true },
+      where: { tenantId, deleted: false, datetime: { gte: monthStartUTC } },
+      orderBy: { _sum: { total: 'desc' } },
+      take: 10
+    }) : Promise.resolve([]),
+    // Sales by salesperson
+    prisma.sale.groupBy({
+      by: ['createdById'],
+      _sum: { total: true },
+      where: { ...scopeWhereClause, datetime: { gte: monthStartUTC } },
+      orderBy: { _sum: { total: 'desc' } },
+      take: 10
+    })
   ]);
 
   type GroupByResult = {
@@ -147,6 +165,39 @@ export const getDashboardMetrics = async (requestingUser: UserContextPayload) =>
     return acc;
   }, []);
 
+  // Process sales by branch data
+  let salesByBranch = [];
+  if (role === Role.ADMIN && salesByBranchData.length > 0) {
+    const branchIds = salesByBranchData.map(item => item.branchId);
+    const branches = await prisma.branch.findMany({
+      where: { id: { in: branchIds } },
+      select: { id: true, name: true }
+    });
+    
+    salesByBranch = salesByBranchData.map(item => {
+      const branch = branches.find(b => b.id === item.branchId);
+      return {
+        name: branch?.name || 'Unknown Branch',
+        value: Number(item._sum.total || 0)
+      };
+    });
+  }
+
+  // Process sales by salesperson data
+  const salespersonIds = salesBySalespersonData.map(item => item.createdById);
+  const salespersons = await prisma.user.findMany({
+    where: { id: { in: salespersonIds } },
+    select: { id: true, name: true }
+  });
+  
+  const salesBySalesperson = salesBySalespersonData.map(item => {
+    const salesperson = salespersons.find(s => s.id === item.createdById);
+    return {
+      name: salesperson?.name || 'Unknown Salesperson',
+      value: Number(item._sum.total || 0)
+    };
+  });
+
   return {
     totalToday: salesTodayData._sum.total || 0,
     mtdData,
@@ -154,5 +205,7 @@ export const getDashboardMetrics = async (requestingUser: UserContextPayload) =>
     topToday: mapResults(topProductsTodayData),
     topMonth: mapResults(topProductsMonthData),
     topYear: mapResults(topProductsYearData),
+    salesByBranch,
+    salesBySalesperson,
   };
 };
