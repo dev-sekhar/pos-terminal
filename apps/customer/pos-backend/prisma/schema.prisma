@@ -40,7 +40,7 @@ model Tenant {
   stripeCustomerId       String?      @unique // To store Stripe Customer ID
   stripeSubscriptionId   String?      @unique // To store Stripe Subscription ID
 
-  pricingPlan            PricingPlan? @relation(fields: [pricingPlanId], references: [id])
+  pricingPlan            PricingPlan? @relation("CurrentTenantPlan", fields: [pricingPlanId], references: [id])
   nextPlan               PricingPlan? @relation("NextTenantPlan", fields: [nextPlanId], references: [id])
   users                  User[]
   branches               Branch[]
@@ -313,7 +313,7 @@ model PricingPlan {
   active           Boolean  @default(true)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
-  tenants          Tenant[] // Existing relation for current plans
+  tenants          Tenant[] @relation("CurrentTenantPlan") // Existing relation for current plans
   nextTenants      Tenant[] @relation("NextTenantPlan") // New relation for next plans
   invoices         Invoice[] // New relation for invoices
 }
@@ -368,4 +368,30 @@ model SystemSettings {
   loginBlockGraceDays   Int      @default(21)  // Complete login block period
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
+}
+
+model Unit {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PaymentType {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Currency {
+  id        Int      @id @default(autoincrement())
+  code      String   @unique // USD, EUR, etc.
+  name      String   // US Dollar, Euro, etc.
+  symbol    String   // $, €, etc.
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
