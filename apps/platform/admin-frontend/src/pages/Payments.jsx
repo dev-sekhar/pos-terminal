@@ -21,7 +21,12 @@ import {
   Select,
   MenuItem,
   Tabs,
-  Tab
+  Tab,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField
 } from '@mui/material';
 import { Refresh } from '@mui/icons-material';
 import Layout from '../components/Layout';
@@ -31,13 +36,21 @@ const Payments = () => {
   const [paidPayments, setPaidPayments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [generating, setGenerating] = useState(false);
+
   const [tabValue, setTabValue] = useState(0);
   const [outstandingYear, setOutstandingYear] = useState(new Date().getFullYear());
   const [paidYear, setPaidYear] = useState(new Date().getFullYear());
+  const [invoiceDialog, setInvoiceDialog] = useState(false);
+  const [allTenants, setAllTenants] = useState([]);
+  const [selectedTenant, setSelectedTenant] = useState('');
+  const [billingPeriodStart, setBillingPeriodStart] = useState('');
+  const [billingPeriodEnd, setBillingPeriodEnd] = useState('');
+  const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
+    console.log('Payments page loaded - Generate Invoice functionality available');
     fetchData();
+    fetchAllTenants();
   }, [outstandingYear, paidYear]);
 
   const fetchData = async () => {
@@ -67,30 +80,54 @@ const Payments = () => {
     }
   };
 
-  const generateInvoices = async () => {
+  const fetchAllTenants = async () => {
+    try {
+      const token = localStorage.getItem('employeeToken');
+      const response = await fetch('http://localhost:5002/api/tenants', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setAllTenants(data);
+        console.log('Tenants loaded for invoice generation:', data.length);
+      }
+    } catch (err) {
+      console.error('Error fetching tenants:', err);
+    }
+  };
+
+  const generateInvoice = async () => {
     setGenerating(true);
     try {
       const token = localStorage.getItem('employeeToken');
-      const response = await fetch('http://localhost:5002/api/generate-invoices', {
+      const response = await fetch(`http://localhost:5002/api/tenants/${selectedTenant}/generate-invoice`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`
-        }
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          billingPeriodStart,
+          billingPeriodEnd
+        })
       });
 
       if (response.ok) {
-        const result = await response.json();
-        alert(`Generated ${result.invoicesGenerated} invoices`);
+        alert('Invoice generated successfully!');
+        setInvoiceDialog(false);
         fetchData();
       } else {
-        setError('Failed to generate invoices');
+        const errorData = await response.json();
+        alert(errorData.message || 'Failed to generate invoice');
       }
     } catch (err) {
-      setError('Error generating invoices');
+      alert('Error generating invoice');
     } finally {
       setGenerating(false);
     }
   };
+
+
 
   const getMethodColor = (method) => {
     switch (method) {
@@ -144,10 +181,13 @@ const Payments = () => {
             </Button>
             <Button
               variant="contained"
-              onClick={generateInvoices}
-              disabled={generating}
+              onClick={() => {
+                console.log('Generate Invoice button clicked on Payments page!');
+                setInvoiceDialog(true);
+              }}
+              sx={{ backgroundColor: 'green', '&:hover': { backgroundColor: 'darkgreen' } }}
             >
-              {generating ? 'Generating...' : 'Generate Invoices'}
+              Generate Invoice
             </Button>
           </Box>
         </Box>
@@ -303,6 +343,54 @@ const Payments = () => {
             </Box>
           )}
         </Paper>
+
+        <Dialog open={invoiceDialog} onClose={() => setInvoiceDialog(false)} maxWidth="sm" fullWidth>
+          <DialogTitle>Generate Invoice</DialogTitle>
+          <DialogContent>
+            <FormControl fullWidth sx={{ mt: 2 }}>
+              <InputLabel>Select Tenant</InputLabel>
+              <Select
+                value={selectedTenant}
+                onChange={(e) => setSelectedTenant(e.target.value)}
+                label="Select Tenant"
+              >
+                {allTenants.map((tenant) => (
+                  <MenuItem key={tenant.id} value={tenant.id}>
+                    {tenant.name} - {tenant.pricingPlan?.name || 'No Plan'}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <TextField
+              fullWidth
+              label="Billing Period Start"
+              type="date"
+              value={billingPeriodStart}
+              onChange={(e) => setBillingPeriodStart(e.target.value)}
+              sx={{ mt: 2 }}
+              InputLabelProps={{ shrink: true }}
+            />
+            <TextField
+              fullWidth
+              label="Billing Period End"
+              type="date"
+              value={billingPeriodEnd}
+              onChange={(e) => setBillingPeriodEnd(e.target.value)}
+              sx={{ mt: 2 }}
+              InputLabelProps={{ shrink: true }}
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setInvoiceDialog(false)}>Cancel</Button>
+            <Button 
+              onClick={generateInvoice} 
+              variant="contained" 
+              disabled={generating || !selectedTenant}
+            >
+              {generating ? 'Generating...' : 'Generate Invoice'}
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Box>
     </Layout>
   );

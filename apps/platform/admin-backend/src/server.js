@@ -763,22 +763,13 @@ app.delete('/api/payment-types/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// Manual invoice generation endpoint
-app.post('/api/generate-invoices', authenticateToken, async (req, res) => {
-  try {
-    const { generateMonthlyInvoices } = await import('../../../customer/pos-backend/src/services/invoiceGenerationService.ts');
-    const result = await generateMonthlyInvoices();
-    res.json(result);
-  } catch (error) {
-    console.error('Error generating invoices:', error);
-    res.status(500).json({ message: 'Failed to generate invoices' });
-  }
-});
+
 
 // Generate invoice for specific tenant
 app.post('/api/tenants/:id/generate-invoice', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
+    const { billingPeriodStart, billingPeriodEnd } = req.body;
     
     const tenant = await prisma.tenant.findUnique({
       where: { id },
@@ -793,41 +784,47 @@ app.post('/api/tenants/:id/generate-invoice', authenticateToken, async (req, res
       return res.status(400).json({ message: 'Cannot generate invoice for free or contact-us plans' });
     }
 
-    // Set plan start date if not set
-    let planStartDate = tenant.currentPlanStartDate;
-    if (!planStartDate) {
-      planStartDate = new Date();
-      await prisma.tenant.update({
-        where: { id },
-        data: { currentPlanStartDate: planStartDate }
-      });
+    let currentPeriodStart, currentPeriodEnd;
+    
+    if (billingPeriodStart && billingPeriodEnd) {
+      // Use custom billing period from admin
+      currentPeriodStart = new Date(billingPeriodStart);
+      currentPeriodEnd = new Date(billingPeriodEnd);
+    } else {
+      // Calculate current billing period automatically
+      let planStartDate = tenant.currentPlanStartDate;
+      if (!planStartDate) {
+        planStartDate = new Date();
+        await prisma.tenant.update({
+          where: { id },
+          data: { currentPlanStartDate: planStartDate }
+        });
+      }
+
+      const now = new Date();
+      const billingStart = new Date(planStartDate);
+      const monthsDiff = (now.getFullYear() - billingStart.getFullYear()) * 12 + (now.getMonth() - billingStart.getMonth());
+      
+      currentPeriodStart = new Date(billingStart);
+      currentPeriodStart.setMonth(billingStart.getMonth() + monthsDiff);
+      
+      currentPeriodEnd = new Date(currentPeriodStart);
+      currentPeriodEnd.setMonth(currentPeriodStart.getMonth() + 1);
+      currentPeriodEnd.setDate(currentPeriodEnd.getDate() - 1);
     }
 
-    // Calculate current billing period
-    const now = new Date();
-    const billingStart = new Date(planStartDate);
-    const monthsDiff = (now.getFullYear() - billingStart.getFullYear()) * 12 + (now.getMonth() - billingStart.getMonth());
-    
-    const currentPeriodStart = new Date(billingStart);
-    currentPeriodStart.setMonth(billingStart.getMonth() + monthsDiff);
-    
-    const currentPeriodEnd = new Date(currentPeriodStart);
-    currentPeriodEnd.setMonth(currentPeriodStart.getMonth() + 1);
-    currentPeriodEnd.setDate(currentPeriodEnd.getDate() - 1);
-
-    // Check if invoice already exists for current period
+    // Check if invoice already exists for this period
     const existingInvoice = await prisma.invoice.findFirst({
       where: {
         tenantId: id,
-        createdAt: {
-          gte: currentPeriodStart,
-          lte: currentPeriodEnd
+        description: {
+          contains: `${currentPeriodStart.toLocaleDateString()} to ${currentPeriodEnd.toLocaleDateString()}`
         }
       }
     });
 
     if (existingInvoice) {
-      return res.status(400).json({ message: 'Invoice already exists for current billing period' });
+      return res.status(400).json({ message: 'Invoice already exists for this billing period' });
     }
 
     const dueDate = new Date(currentPeriodEnd);

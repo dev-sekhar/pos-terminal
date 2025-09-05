@@ -106,7 +106,7 @@ const navItems = [
     text: "Billing",
     path: "/app/billing",
     icon: <ReceiptIcon />,
-    permission: PERMISSIONS.MANAGE_SETTINGS,
+    permission: PERMISSIONS.MANAGE_BILLING,
   },
 
 ];
@@ -123,11 +123,23 @@ const Sidebar = () => {
 
     // Get the full list of permission strings for the current user's role
     const userPermissions = getUserPermissions(user.role);
+    
+    // Debug logging
+    console.log('User role:', user.role);
+    console.log('User permissions:', userPermissions);
+    console.log('MANAGE_BILLING permission:', PERMISSIONS.MANAGE_BILLING);
+    console.log('Has billing permission:', userPermissions.includes(PERMISSIONS.MANAGE_BILLING));
 
     // Recursively filter the nav items and their sub-items based on the user's permissions
     const filterItems = (items) => {
       return items
-        .filter((item) => userPermissions.includes(item.permission)) // Check if the user has the permission for this link
+        .filter((item) => {
+          const hasPermission = userPermissions.includes(item.permission);
+          if (item.text === 'Billing') {
+            console.log('Billing item permission check:', item.permission, 'Has permission:', hasPermission);
+          }
+          return hasPermission;
+        })
         .map((item) => {
           // If the item has sub-items, filter those as well
           if (item.subItems) {
@@ -137,7 +149,9 @@ const Sidebar = () => {
         });
     };
 
-    return filterItems(navItems);
+    const filtered = filterItems(navItems);
+    console.log('Accessible nav items:', filtered.map(item => item.text));
+    return filtered;
   }, [user]);
 
   return (

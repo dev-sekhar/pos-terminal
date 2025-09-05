@@ -146,7 +146,7 @@ function App() {
           </Route>
           <Route
             element={
-              <ProtectedRoute requiredPermission={PERMISSIONS.MANAGE_SETTINGS} />
+              <ProtectedRoute requiredPermission={PERMISSIONS.MANAGE_BILLING} />
             }
           >
             <Route path="billing" element={<Billing />} />

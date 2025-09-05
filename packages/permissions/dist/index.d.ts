@@ -15,5 +15,6 @@ export declare const PERMISSIONS: {
     readonly CREATE_SALES: "create:sales";
     readonly VIEW_REPORTS: "view:reports";
     readonly VIEW_DASHBOARD: "view:dashboard";
+    readonly MANAGE_BILLING: "manage:billing";
 };
 export declare const getUserPermissions: (role?: Role) => string[];

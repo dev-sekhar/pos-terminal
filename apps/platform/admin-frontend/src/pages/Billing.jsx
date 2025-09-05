@@ -40,13 +40,19 @@ const Billing = () => {
   const [generating, setGenerating] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [changePlanDialog, setChangePlanDialog] = useState(false);
+  const [invoiceDialog, setInvoiceDialog] = useState(false);
   const [pricingPlans, setPricingPlans] = useState([]);
+  const [allTenants, setAllTenants] = useState([]);
   const [selectedPlan, setSelectedPlan] = useState('');
   const [activationDate, setActivationDate] = useState('');
+  const [selectedTenant, setSelectedTenant] = useState('');
+  const [billingPeriodStart, setBillingPeriodStart] = useState('');
+  const [billingPeriodEnd, setBillingPeriodEnd] = useState('');
 
   useEffect(() => {
     fetchBillingData();
     fetchPricingPlans();
+    fetchAllTenants();
   }, [tenantId]);
 
   const fetchBillingData = async () => {
@@ -89,6 +95,23 @@ const Billing = () => {
     }
   };
 
+  const fetchAllTenants = async () => {
+    try {
+      const token = localStorage.getItem('employeeToken');
+      const response = await fetch('http://localhost:5002/api/tenants', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setAllTenants(data);
+      }
+    } catch (err) {
+      console.error('Error fetching tenants:', err);
+    }
+  };
+
   const changePlan = async () => {
     console.log('DEBUG - Change plan called with:', { selectedPlan, activationDate });
     try {
@@ -127,17 +150,23 @@ const Billing = () => {
     setGenerating(true);
     try {
       const token = localStorage.getItem('employeeToken');
-      const response = await fetch(`http://localhost:5002/api/tenants/${tenantId}/generate-invoice`, {
+      const targetTenantId = selectedTenant || tenantId;
+      const response = await fetch(`http://localhost:5002/api/tenants/${targetTenantId}/generate-invoice`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
-        }
+        },
+        body: JSON.stringify({
+          billingPeriodStart,
+          billingPeriodEnd
+        })
       });
 
       if (response.ok) {
         setSnackbar({ open: true, message: 'Invoice generated successfully', severity: 'success' });
-        fetchBillingData(); // Refresh data
+        setInvoiceDialog(false);
+        fetchBillingData();
       } else {
         const errorData = await response.json();
         setSnackbar({ open: true, message: errorData.message || 'Failed to generate invoice', severity: 'error' });
@@ -204,10 +233,13 @@ const Billing = () => {
             <Button
               variant="contained"
               startIcon={<Receipt />}
-              onClick={generateInvoice}
-              disabled={generating}
+              onClick={() => {
+                console.log('Generate Invoice button clicked!');
+                setInvoiceDialog(true);
+              }}
+              sx={{ backgroundColor: 'red', '&:hover': { backgroundColor: 'darkred' } }}
             >
-              {generating ? 'Generating...' : 'Generate Invoice'}
+              Generate Invoice
             </Button>
           </Box>
         </Box>
@@ -348,6 +380,54 @@ const Billing = () => {
           )}
         </Paper>
         
+        <Dialog open={invoiceDialog} onClose={() => setInvoiceDialog(false)} maxWidth="sm" fullWidth>
+          <DialogTitle>Generate Invoice</DialogTitle>
+          <DialogContent>
+            <FormControl fullWidth sx={{ mt: 2 }}>
+              <InputLabel>Select Tenant</InputLabel>
+              <Select
+                value={selectedTenant || tenantId}
+                onChange={(e) => setSelectedTenant(e.target.value)}
+                label="Select Tenant"
+              >
+                {allTenants.map((tenant) => (
+                  <MenuItem key={tenant.id} value={tenant.id}>
+                    {tenant.name} - {tenant.pricingPlan?.name || 'No Plan'}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <TextField
+              fullWidth
+              label="Billing Period Start"
+              type="date"
+              value={billingPeriodStart}
+              onChange={(e) => setBillingPeriodStart(e.target.value)}
+              sx={{ mt: 2 }}
+              InputLabelProps={{ shrink: true }}
+            />
+            <TextField
+              fullWidth
+              label="Billing Period End"
+              type="date"
+              value={billingPeriodEnd}
+              onChange={(e) => setBillingPeriodEnd(e.target.value)}
+              sx={{ mt: 2 }}
+              InputLabelProps={{ shrink: true }}
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setInvoiceDialog(false)}>Cancel</Button>
+            <Button 
+              onClick={generateInvoice} 
+              variant="contained" 
+              disabled={generating || !selectedTenant}
+            >
+              {generating ? 'Generating...' : 'Generate Invoice'}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
         <Dialog open={changePlanDialog} onClose={() => setChangePlanDialog(false)} maxWidth="sm" fullWidth>
           <DialogTitle>Change Plan</DialogTitle>
           <DialogContent>

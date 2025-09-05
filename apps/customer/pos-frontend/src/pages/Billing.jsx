@@ -20,11 +20,14 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  TextField
+  TextField,
+  Tabs,
+  Tab
 } from '@mui/material';
 import { authenticatedFetch } from '../utils/api';
 import { useTenant } from '../context/TenantContext';
 import { useUser } from '../context/UserContext';
+import { getUserPermissions, PERMISSIONS } from '@pos-terminal/permissions';
 
 // For Stripe integration (frontend)
 // import { loadStripe } from '@stripe/stripe-js';
@@ -33,6 +36,20 @@ import { useUser } from '../context/UserContext';
 const Billing = () => {
   const { tenant } = useTenant();
   const { user } = useUser();
+  
+  // Check if user has billing permissions
+  const userPermissions = getUserPermissions(user?.role);
+  const canAccessBilling = userPermissions.includes(PERMISSIONS.MANAGE_BILLING);
+  
+  if (!canAccessBilling) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <Alert severity="error">
+          Access Denied: You do not have permission to view billing information. Only administrators can access this page.
+        </Alert>
+      </Box>
+    );
+  }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [currentPlanDetails, setCurrentPlanDetails] = useState(null);
@@ -40,6 +57,7 @@ const Billing = () => {
   const [outstandingInvoices, setOutstandingInvoices] = useState([]);
   const [paymentDialog, setPaymentDialog] = useState({ open: false, invoice: null });
   const [paymentAmount, setPaymentAmount] = useState('');
+  const [tabValue, setTabValue] = useState(0);
 
   const handleMakePayment = async (invoiceId, amount) => {
     try {
@@ -208,74 +226,119 @@ const Billing = () => {
         </Paper>
       )}
 
-      {/* Payment History */}
+      {/* Invoice History with Tabs */}
       <Paper sx={{ p: 3 }}>
-        <Typography variant="h5" gutterBottom>Payment History</Typography>
-        <TableContainer>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Invoice #</TableCell>
-                <TableCell>Amount</TableCell>
-                <TableCell>Due Date</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Description</TableCell>
-                <TableCell>Payments</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {billingHistory.map((invoice) => {
-                const totalPaid = invoice.payments?.reduce((sum, payment) => sum + payment.amount, 0) || 0;
-                const getStatusColor = (status) => {
-                  switch (status) {
-                    case 'PAID': return 'success';
-                    case 'PENDING': return 'warning';
-                    case 'OVERDUE': return 'error';
-                    default: return 'default';
-                  }
-                };
-                return (
-                  <TableRow key={invoice.id}>
-                    <TableCell>#{invoice.id}</TableCell>
-                    <TableCell>${invoice.amount.toFixed(2)}</TableCell>
-                    <TableCell>{new Date(invoice.dueDate).toLocaleDateString()}</TableCell>
-                    <TableCell>
-                      <Chip 
-                        label={invoice.status} 
-                        size="small"
-                        color={getStatusColor(invoice.status)}
-                      />
-                    </TableCell>
-                    <TableCell>{invoice.description || 'Monthly subscription'}</TableCell>
-                    <TableCell>
-                      {invoice.payments && invoice.payments.length > 0 ? (
-                        <Box>
-                          <Typography variant="body2">
-                            ${totalPaid.toFixed(2)} paid
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {invoice.payments.length} payment(s)
-                          </Typography>
-                        </Box>
-                      ) : (
-                        <Typography variant="body2" color="text.secondary">
-                          No payments
-                        </Typography>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </TableContainer>
+        <Typography variant="h5" gutterBottom>Invoice History</Typography>
+        
+        <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)} sx={{ mb: 3 }}>
+          <Tab label={`Unpaid (${outstandingInvoices.length})`} />
+          <Tab label={`Paid (${billingHistory.filter(inv => inv.status === 'PAID').length})`} />
+        </Tabs>
 
-        {billingHistory.length === 0 && (
-          <Box textAlign="center" py={4}>
-            <Typography variant="body1" color="text.secondary">
-              No billing history found
-            </Typography>
-          </Box>
+        {/* Unpaid Invoices Tab */}
+        {tabValue === 0 && (
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Invoice #</TableCell>
+                  <TableCell>Amount</TableCell>
+                  <TableCell>Due Date</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell>Description</TableCell>
+                  <TableCell>Action</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {outstandingInvoices.map((invoice) => {
+                  const totalPaid = invoice.payments?.reduce((sum, payment) => sum + payment.amount, 0) || 0;
+                  const amountDue = invoice.amount - totalPaid;
+                  return (
+                    <TableRow key={invoice.id}>
+                      <TableCell>#{invoice.id}</TableCell>
+                      <TableCell>${invoice.amount.toFixed(2)}</TableCell>
+                      <TableCell>{new Date(invoice.dueDate).toLocaleDateString()}</TableCell>
+                      <TableCell>
+                        <Chip 
+                          label={invoice.status} 
+                          size="small"
+                          color={invoice.status === 'OVERDUE' ? 'error' : 'warning'}
+                        />
+                      </TableCell>
+                      <TableCell>{invoice.description || 'Monthly subscription'}</TableCell>
+                      <TableCell>
+                        <Button 
+                          variant="contained" 
+                          size="small"
+                          onClick={() => setPaymentDialog({ open: true, invoice })}
+                          disabled={amountDue <= 0}
+                        >
+                          Pay ${amountDue.toFixed(2)}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+            {outstandingInvoices.length === 0 && (
+              <Box textAlign="center" py={4}>
+                <Typography variant="body1" color="text.secondary">
+                  No unpaid invoices
+                </Typography>
+              </Box>
+            )}
+          </TableContainer>
+        )}
+
+        {/* Paid Invoices Tab */}
+        {tabValue === 1 && (
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Invoice #</TableCell>
+                  <TableCell>Amount</TableCell>
+                  <TableCell>Due Date</TableCell>
+                  <TableCell>Paid Date</TableCell>
+                  <TableCell>Description</TableCell>
+                  <TableCell>Payments</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {billingHistory.filter(inv => inv.status === 'PAID').map((invoice) => {
+                  const totalPaid = invoice.payments?.reduce((sum, payment) => sum + payment.amount, 0) || 0;
+                  const lastPayment = invoice.payments?.sort((a, b) => new Date(b.paymentDate) - new Date(a.paymentDate))[0];
+                  return (
+                    <TableRow key={invoice.id}>
+                      <TableCell>#{invoice.id}</TableCell>
+                      <TableCell>${invoice.amount.toFixed(2)}</TableCell>
+                      <TableCell>{new Date(invoice.dueDate).toLocaleDateString()}</TableCell>
+                      <TableCell>
+                        {lastPayment ? new Date(lastPayment.paymentDate).toLocaleDateString() : 'N/A'}
+                      </TableCell>
+                      <TableCell>{invoice.description || 'Monthly subscription'}</TableCell>
+                      <TableCell>
+                        <Typography variant="body2">
+                          ${totalPaid.toFixed(2)} paid
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {invoice.payments?.length || 0} payment(s)
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+            {billingHistory.filter(inv => inv.status === 'PAID').length === 0 && (
+              <Box textAlign="center" py={4}>
+                <Typography variant="body1" color="text.secondary">
+                  No paid invoices
+                </Typography>
+              </Box>
+            )}
+          </TableContainer>
         )}
       </Paper>
 
