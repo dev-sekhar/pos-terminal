@@ -29,6 +29,47 @@ import { useTenant } from '../context/TenantContext';
 import { useUser } from '../context/UserContext';
 import { getUserPermissions, PERMISSIONS } from '@pos-terminal/permissions';
 
+// Currency formatting utility with conversion info
+const formatCurrency = (amount, tenantSettings, convertedData = null) => {
+  console.log('=== FORMAT CURRENCY DEBUG ===');
+  console.log('Amount:', amount);
+  console.log('Tenant Settings:', tenantSettings);
+  console.log('Converted Data:', convertedData);
+  
+  const currency = tenantSettings?.currency || 'USD';
+  console.log('Currency:', currency);
+  
+  const currencySymbols = {
+    'USD': '$',
+    'EUR': '€',
+    'GBP': '£',
+    'JPY': '¥',
+    'INR': '₹'
+  };
+  const symbol = currencySymbols[currency] || currency;
+  console.log('Symbol:', symbol);
+  
+  if (convertedData && currency !== 'USD') {
+    console.log('Using converted data');
+    const result = {
+      display: `${symbol}${convertedData.convertedAmount.toFixed(2)}`,
+      rateInfo: `Rate: 1 USD = ${convertedData.exchangeRate.rate.toFixed(4)} ${currency}, ${convertedData.exchangeRate.date}`
+    };
+    console.log('Converted Result:', result);
+    console.log('=== END FORMAT DEBUG ===');
+    return result;
+  }
+  
+  console.log('Using original amount');
+  const result = {
+    display: `${symbol}${amount.toFixed(2)}`,
+    rateInfo: null
+  };
+  console.log('Original Result:', result);
+  console.log('=== END FORMAT DEBUG ===');
+  return result;
+};
+
 // For Stripe integration (frontend)
 // import { loadStripe } from '@stripe/stripe-js';
 // import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
@@ -58,6 +99,7 @@ const Billing = () => {
   const [paymentDialog, setPaymentDialog] = useState({ open: false, invoice: null });
   const [paymentAmount, setPaymentAmount] = useState('');
   const [tabValue, setTabValue] = useState(0);
+  const [tenantSettings, setTenantSettings] = useState(null);
 
   const handleMakePayment = async (invoiceId, amount) => {
     try {
@@ -93,7 +135,15 @@ const Billing = () => {
 
         // Fetch billing history
         const historyData = await authenticatedFetch('/api/billing/history');
+        console.log('=== FRONTEND BILLING DEBUG ===');
+        console.log('Billing History Data:', historyData);
         setBillingHistory(historyData);
+        
+        // Fetch tenant settings for currency
+        const settingsData = await authenticatedFetch('/api/settings');
+        console.log('Tenant Settings Data:', settingsData);
+        setTenantSettings(settingsData);
+        console.log('=== END FRONTEND DEBUG ===');
         
         // Filter outstanding invoices
         const outstanding = historyData.filter(invoice => 
@@ -176,7 +226,17 @@ const Billing = () => {
                     variant="h4" 
                     color={hasOutstanding ? 'error' : 'success.main'}
                   >
-                    ${totalOutstanding.toFixed(2)}
+                    {(() => {
+                      const totalConverted = outstandingInvoices.reduce((total, invoice) => {
+                        const convertedAmount = invoice.convertedAmount?.convertedAmount || invoice.amount;
+                        const totalPaid = (invoice.payments || []).reduce((sum, payment) => {
+                          return sum + (payment.convertedAmount?.convertedAmount || payment.amount);
+                        }, 0);
+                        return total + (convertedAmount - totalPaid);
+                      }, 0);
+                      const formatted = formatCurrency(totalConverted, tenantSettings);
+                      return formatted.display;
+                    })()}
                   </Typography>
                   <Typography variant="body2">
                     {hasOutstanding 
@@ -204,7 +264,24 @@ const Billing = () => {
                   <Card sx={{ border: 1, borderColor: 'error.main' }}>
                     <CardContent>
                       <Typography variant="h6">Invoice #{invoice.id}</Typography>
-                      <Typography color="error" variant="h5">${amountDue.toFixed(2)}</Typography>
+                      <Box sx={{ color: 'error.main', typography: 'h5' }}>
+                        {(() => {
+                          const convertedAmountDue = (invoice.convertedAmount?.convertedAmount || invoice.amount) - 
+                            (invoice.payments || []).reduce((sum, payment) => 
+                              sum + (payment.convertedAmount?.convertedAmount || payment.amount), 0);
+                          const formatted = formatCurrency(convertedAmountDue, tenantSettings, invoice.convertedAmount);
+                          return (
+                            <>
+                              <div>{formatted.display}</div>
+                              {formatted.rateInfo && (
+                                <Typography variant="caption" color="text.secondary" display="block">
+                                  {formatted.rateInfo}
+                                </Typography>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </Box>
                       <Typography variant="body2">Due: {new Date(invoice.dueDate).toLocaleDateString()}</Typography>
                       <Typography variant="body2">{invoice.description}</Typography>
                       <Button 
@@ -256,7 +333,21 @@ const Billing = () => {
                   return (
                     <TableRow key={invoice.id}>
                       <TableCell>#{invoice.id}</TableCell>
-                      <TableCell>${invoice.amount.toFixed(2)}</TableCell>
+                      <TableCell>
+                        {(() => {
+                          const formatted = formatCurrency(invoice.amount, tenantSettings, invoice.convertedAmount);
+                          return (
+                            <Box>
+                              <div>{formatted.display}</div>
+                              {formatted.rateInfo && (
+                                <Typography variant="caption" color="text.secondary" display="block">
+                                  {formatted.rateInfo}
+                                </Typography>
+                              )}
+                            </Box>
+                          );
+                        })()}
+                      </TableCell>
                       <TableCell>{new Date(invoice.dueDate).toLocaleDateString()}</TableCell>
                       <TableCell>
                         <Chip 
@@ -273,7 +364,13 @@ const Billing = () => {
                           onClick={() => setPaymentDialog({ open: true, invoice })}
                           disabled={amountDue <= 0}
                         >
-                          Pay ${amountDue.toFixed(2)}
+                          Pay {(() => {
+                            const convertedAmountDue = (invoice.convertedAmount?.convertedAmount || invoice.amount) - 
+                              (invoice.payments || []).reduce((sum, payment) => 
+                                sum + (payment.convertedAmount?.convertedAmount || payment.amount), 0);
+                            const formatted = formatCurrency(convertedAmountDue, tenantSettings, invoice.convertedAmount);
+                            return formatted.display;
+                          })()}
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -301,31 +398,39 @@ const Billing = () => {
                   <TableCell>Amount</TableCell>
                   <TableCell>Due Date</TableCell>
                   <TableCell>Paid Date</TableCell>
+                  <TableCell>Paid By</TableCell>
                   <TableCell>Description</TableCell>
-                  <TableCell>Payments</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {billingHistory.filter(inv => inv.status === 'PAID').map((invoice) => {
-                  const totalPaid = invoice.payments?.reduce((sum, payment) => sum + payment.amount, 0) || 0;
                   const lastPayment = invoice.payments?.sort((a, b) => new Date(b.paymentDate) - new Date(a.paymentDate))[0];
                   return (
                     <TableRow key={invoice.id}>
                       <TableCell>#{invoice.id}</TableCell>
-                      <TableCell>${invoice.amount.toFixed(2)}</TableCell>
+                      <TableCell>
+                        {(() => {
+                          const formatted = formatCurrency(invoice.amount, tenantSettings, invoice.convertedAmount);
+                          return (
+                            <Box>
+                              <div>{formatted.display}</div>
+                              {invoice.pricingPlan && (
+                                <Typography variant="caption" color="text.secondary" display="block">
+                                  Plan: {invoice.pricingPlan.name} - ${invoice.pricingPlan.price}
+                                </Typography>
+                              )}
+                            </Box>
+                          );
+                        })()}
+                      </TableCell>
                       <TableCell>{new Date(invoice.dueDate).toLocaleDateString()}</TableCell>
                       <TableCell>
-                        {lastPayment ? new Date(lastPayment.paymentDate).toLocaleDateString() : 'N/A'}
+                        {lastPayment && lastPayment.paymentDate ? new Date(lastPayment.paymentDate).toLocaleDateString() : 'N/A'}
+                      </TableCell>
+                      <TableCell>
+                        {user?.name || 'System'}
                       </TableCell>
                       <TableCell>{invoice.description || 'Monthly subscription'}</TableCell>
-                      <TableCell>
-                        <Typography variant="body2">
-                          ${totalPaid.toFixed(2)} paid
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {invoice.payments?.length || 0} payment(s)
-                        </Typography>
-                      </TableCell>
                     </TableRow>
                   );
                 })}
@@ -349,7 +454,25 @@ const Billing = () => {
           {paymentDialog.invoice && (
             <Box sx={{ mt: 2 }}>
               <Typography variant="h6">Invoice #{paymentDialog.invoice.id}</Typography>
-              <Typography>Amount Due: ${(paymentDialog.invoice.amount - (paymentDialog.invoice.payments?.reduce((sum, p) => sum + p.amount, 0) || 0)).toFixed(2)}</Typography>
+              <Box>
+                <Typography component="span">Amount Due: </Typography>
+                {(() => {
+                  const convertedAmountDue = (paymentDialog.invoice.convertedAmount?.convertedAmount || paymentDialog.invoice.amount) - 
+                    (paymentDialog.invoice.payments || []).reduce((sum, payment) => 
+                      sum + (payment.convertedAmount?.convertedAmount || payment.amount), 0);
+                  const formatted = formatCurrency(convertedAmountDue, tenantSettings, paymentDialog.invoice.convertedAmount);
+                  return (
+                    <Box component="span">
+                      {formatted.display}
+                      {formatted.rateInfo && (
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          {formatted.rateInfo}
+                        </Typography>
+                      )}
+                    </Box>
+                  );
+                })()}
+              </Box>
               <Typography variant="body2" sx={{ mb: 3 }}>{paymentDialog.invoice.description}</Typography>
               
               <TextField

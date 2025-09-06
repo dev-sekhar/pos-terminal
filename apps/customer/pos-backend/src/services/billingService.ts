@@ -7,7 +7,10 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06
 export const getBillingHistory = async (tenantId: string) => {
   const invoices = await prisma.invoice.findMany({
     where: { tenantId },
-    include: { pricingPlan: true },
+    include: { 
+      pricingPlan: true,
+      payments: true
+    },
     orderBy: { createdAt: 'desc' },
   });
   return invoices;
@@ -243,7 +246,15 @@ export const changePlan = async (tenantId: string, newPlanId: number) => {
   }
 };
 
-export const makePayment = async (tenantId: string, invoiceId: number, amount: number, method: string = 'CARD') => {
+export const makePayment = async (tenantId: string, invoiceId: number, amount: number, method: string = 'CARD', userId?: string) => {
+  // Get tenant settings for currency conversion
+  const tenant = await prisma.tenant.findUnique({
+    where: { id: tenantId },
+    select: { settings: true }
+  });
+  
+  const tenantCurrency = tenant?.settings?.currency || 'USD';
+  
   // Verify invoice belongs to tenant
   const invoice = await prisma.invoice.findFirst({
     where: { 
@@ -257,28 +268,60 @@ export const makePayment = async (tenantId: string, invoiceId: number, amount: n
     throw new Error('Invoice not found or does not belong to this tenant.');
   }
 
-  // Calculate remaining amount
-  const totalPaid = invoice.payments.reduce((sum, payment) => sum + payment.amount, 0);
-  const remainingAmount = invoice.amount - totalPaid;
+  // Convert amounts to tenant currency for validation
+  let invoiceAmount = invoice.amount;
+  let totalPaid = invoice.payments.reduce((sum, payment) => sum + payment.amount, 0);
+  let currencySymbol = '$';
+  
+  if (tenantCurrency !== 'USD') {
+    const { convertCurrency } = await import('../services/currencyService');
+    
+    // Convert invoice amount
+    const convertedInvoice = await convertCurrency(invoice.amount, 'USD', tenantCurrency);
+    invoiceAmount = convertedInvoice.convertedAmount;
+    
+    // Convert total payments
+    const convertedPayments = await Promise.all(
+      invoice.payments.map(payment => convertCurrency(payment.amount, 'USD', tenantCurrency))
+    );
+    totalPaid = convertedPayments.reduce((sum, converted) => sum + converted.convertedAmount, 0);
+    
+    // Set currency symbol
+    const symbols: { [key: string]: string } = {
+      'INR': '₹', 'EUR': '€', 'GBP': '£', 'JPY': '¥'
+    };
+    currencySymbol = symbols[tenantCurrency] || tenantCurrency;
+  }
+  
+  const remainingAmount = invoiceAmount - totalPaid;
 
   if (amount > remainingAmount) {
-    throw new Error(`Payment amount cannot exceed remaining balance of $${remainingAmount.toFixed(2)}.`);
+    throw new Error(`Payment amount cannot exceed remaining balance of ${currencySymbol}${remainingAmount.toFixed(2)}.`);
   }
 
-  // Create payment record
+  // Convert payment amount back to USD for storage
+  let paymentAmountUSD = amount;
+  if (tenantCurrency !== 'USD') {
+    const { convertCurrency } = await import('../services/currencyService');
+    const convertedPayment = await convertCurrency(amount, tenantCurrency, 'USD');
+    paymentAmountUSD = convertedPayment.convertedAmount;
+  }
+
+  // Create payment record (store in USD)
   const payment = await prisma.payment.create({
     data: {
       invoiceId,
-      amount,
+      amount: paymentAmountUSD,
       paymentDate: new Date(),
       method,
-      reference: `DEMO-${Date.now()}` // Demo reference
+      reference: `DEMO-${Date.now()}`, // Demo reference
+      paidById: userId
     }
   });
 
-  // Update invoice status if fully paid
+  // Update invoice status if fully paid (check in converted currency)
   const newTotalPaid = totalPaid + amount;
-  if (newTotalPaid >= invoice.amount) {
+  if (newTotalPaid >= invoiceAmount) {
     await prisma.invoice.update({
       where: { id: invoiceId },
       data: { status: 'PAID' }
@@ -294,7 +337,7 @@ export const makePayment = async (tenantId: string, invoiceId: number, amount: n
   return { 
     message: 'Payment processed successfully',
     payment,
-    remainingBalance: invoice.amount - newTotalPaid
+    remainingBalance: invoiceAmount - newTotalPaid
   };
 };
 

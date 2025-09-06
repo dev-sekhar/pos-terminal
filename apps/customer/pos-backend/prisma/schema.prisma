@@ -83,6 +83,7 @@ model User {
   createdSuppliers         Supplier[]        @relation("CreatedSuppliers")
   createdPurchases         Purchase[]        @relation("CreatedPurchases")
   auditLogs                AuditLog[]
+  payments                 Payment[]         @relation("UserPayments")
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -356,6 +357,8 @@ model Payment {
   method                      String   @default("CARD") // CARD, BANK, CASH
   reference                   String?
   paymentGatewayTransactionId String? // Transaction ID from Stripe or other gateway
+  paidById                    Int?
+  paidBy                      User?    @relation("UserPayments", fields: [paidById], references: [id])
   createdAt                   DateTime @default(now())
 
   @@index([invoiceId])
