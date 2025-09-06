@@ -2,6 +2,7 @@
 // It re-exports all the individual schemas, making them available for import
 // from a single, clean path.
 
+export * from './billingSchema';
 export * from './branchSchema';
 export * from './inventorySchema';
 export * from './productCategorySchema';

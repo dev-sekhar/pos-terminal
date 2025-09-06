@@ -315,6 +315,19 @@ export const makePayment = async (tenantId: string, invoiceId: number, amount: n
     });
   }
 
+  // Notify about payment
+  console.log('[PAYMENT] Importing event service to notify payment...');
+  const { billingEventService } = await import('../services/eventService');
+  console.log('[PAYMENT] Event service imported, notifying payment made for tenant:', tenantId);
+  billingEventService.notifyPaymentMade(tenantId, {
+    invoiceId,
+    amount: paymentAmountUSD,
+    convertedAmount: amount,
+    currency: tenantCurrency,
+    paymentDate: new Date()
+  });
+  console.log('[PAYMENT] Payment notification sent');
+
   return { 
     message: 'Payment processed successfully',
     payment,

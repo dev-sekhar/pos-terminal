@@ -29,6 +29,7 @@ import { useTenant } from '../context/TenantContext';
 import { useUser } from '../context/UserContext';
 import { getUserPermissions, PERMISSIONS } from '@pos-terminal/permissions';
 import { formatCurrency } from '../utils/currencyFormatter';
+import { useBillingEvents } from '../hooks/useBillingEvents';
 
 // For Stripe integration (frontend)
 // import { loadStripe } from '@stripe/stripe-js';
@@ -95,15 +96,11 @@ const Billing = () => {
 
         // Fetch billing history
         const historyData = await authenticatedFetch('/api/billing/history');
-        console.log('=== FRONTEND BILLING DEBUG ===');
-        console.log('Billing History Data:', historyData);
         setBillingHistory(historyData);
         
         // Fetch tenant settings for currency
         const settingsData = await authenticatedFetch('/api/settings');
-        console.log('Tenant Settings Data:', settingsData);
         setTenantSettings(settingsData);
-        console.log('=== END FRONTEND DEBUG ===');
         
         // Filter outstanding invoices
         const outstanding = historyData.filter(invoice => 
@@ -119,6 +116,26 @@ const Billing = () => {
     };
     fetchData();
   }, [tenant, user]);
+
+  // Real-time billing events
+  useBillingEvents((event) => {
+    if (event.type === 'invoice:created') {
+      // Refresh billing data when new invoice is created
+      const refreshData = async () => {
+        try {
+          const historyData = await authenticatedFetch('/api/billing/history');
+          setBillingHistory(historyData);
+          const outstanding = historyData.filter(invoice => 
+            invoice.status === 'PENDING' || invoice.status === 'OVERDUE'
+          );
+          setOutstandingInvoices(outstanding);
+        } catch (err) {
+          console.error('Error refreshing billing data:', err);
+        }
+      };
+      refreshData();
+    }
+  });
 
 
 

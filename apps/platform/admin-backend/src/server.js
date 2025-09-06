@@ -4,6 +4,7 @@ import cors from 'cors';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { getSalesOverview, getTopProducts, getSalesByCategory } from './controllers/reportsController.js';
 
 const app = express();
 const prisma = new PrismaClient();
@@ -12,6 +13,11 @@ const JWT_SECRET = process.env.JWT_SECRET || 'admin-secret-key';
 
 app.use(cors());
 app.use(express.json());
+
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  next();
+});
 
 // Employee login endpoint
 app.post('/api/auth/login', async (req, res) => {
@@ -384,6 +390,11 @@ app.delete('/api/payment-types/:id', authenticateToken, async (req, res) => {
     res.status(500).json({ message: 'Failed to delete payment type' });
   }
 });
+
+// Reports endpoints
+app.get('/api/reports/sales', authenticateToken, getSalesOverview);
+app.get('/api/reports/top-products', authenticateToken, getTopProducts);
+app.get('/api/reports/sales-by-category', authenticateToken, getSalesByCategory);
 
 const server = app.listen(PORT, () => {
   console.log(`Admin backend running on port ${PORT}`);
@@ -840,6 +851,19 @@ app.post('/api/tenants/:id/generate-invoice', authenticateToken, async (req, res
         status: 'PENDING'
       }
     });
+
+    // Notify customer portal about new invoice
+    console.log('[ADMIN] Importing event service to notify invoice creation...');
+    const { billingEventService } = await import('./services/eventService.js');
+    console.log('[ADMIN] Event service imported, notifying invoice created for tenant:', id);
+    billingEventService.notifyInvoiceCreated(id, {
+      id: invoice.id,
+      amount: invoice.amount,
+      dueDate: invoice.dueDate,
+      description: invoice.description,
+      status: invoice.status
+    });
+    console.log('[ADMIN] Invoice creation notification sent');
 
     res.json({ message: 'Invoice generated successfully', invoice });
   } catch (error) {

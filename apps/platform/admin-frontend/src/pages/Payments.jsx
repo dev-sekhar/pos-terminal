@@ -30,6 +30,7 @@ import {
 } from '@mui/material';
 import { Refresh } from '@mui/icons-material';
 import Layout from '../components/Layout';
+import { useBillingEvents } from '../hooks/useBillingEvents';
 
 const Payments = () => {
   const [outstandingInvoices, setOutstandingInvoices] = useState([]);
@@ -52,6 +53,14 @@ const Payments = () => {
     fetchData();
     fetchAllTenants();
   }, [outstandingYear, paidYear]);
+
+  // Real-time billing events
+  useBillingEvents((event) => {
+    if (event.type === 'payment:made') {
+      // Refresh payments data when payment is made
+      fetchData();
+    }
+  });
 
   const fetchData = async () => {
     try {
@@ -223,7 +232,7 @@ const Payments = () => {
                 <Typography variant="h6" gutterBottom>
                   Total Revenue
                 </Typography>
-                <Typography variant="h4" color="primary">
+                <Typography variant="h4" color={totalOutstanding > 0 ? 'warning.main' : 'success.main'}>
                   ${(totalPaid + totalOutstanding).toFixed(2)}
                 </Typography>
               </CardContent>

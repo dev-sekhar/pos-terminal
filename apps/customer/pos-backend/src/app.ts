@@ -29,6 +29,7 @@ import pricingRoutes from './routes/pricing';
 import reportsRoutes from './routes/reports';
 import billingRoutes from './routes/billing';
 import webhooksRoutes from './routes/webhooks'; // New import
+import eventsRoutes from './routes/events';
 import authMiddleware from './middleware/authMiddleware';
 import tenantMiddleware from './middleware/tenantMiddleware';
 import { blockEditOperations } from './middleware/paymentStatusMiddleware';
@@ -101,6 +102,7 @@ app.use('/api/dashboard', protectedMiddleware, dashboardRoutes);
 app.use('/api/settings', protectedMiddleware, settingsRoutes);
 app.use('/api/reports', protectedMiddleware, reportsRoutes);
 app.use('/api/billing', protectedMiddleware, billingRoutes); // New billing routes
+app.use('/api/events', [authMiddleware, tenantMiddleware], eventsRoutes); // New events routes
 // Protected pricing endpoints (limits) - read-only, no edit blocking needed
 app.use('/api/pricing', [authMiddleware, tenantMiddleware], pricingRoutes);
 
