@@ -28,47 +28,7 @@ import { authenticatedFetch } from '../utils/api';
 import { useTenant } from '../context/TenantContext';
 import { useUser } from '../context/UserContext';
 import { getUserPermissions, PERMISSIONS } from '@pos-terminal/permissions';
-
-// Currency formatting utility with conversion info
-const formatCurrency = (amount, tenantSettings, convertedData = null) => {
-  console.log('=== FORMAT CURRENCY DEBUG ===');
-  console.log('Amount:', amount);
-  console.log('Tenant Settings:', tenantSettings);
-  console.log('Converted Data:', convertedData);
-  
-  const currency = tenantSettings?.currency || 'USD';
-  console.log('Currency:', currency);
-  
-  const currencySymbols = {
-    'USD': '$',
-    'EUR': '€',
-    'GBP': '£',
-    'JPY': '¥',
-    'INR': '₹'
-  };
-  const symbol = currencySymbols[currency] || currency;
-  console.log('Symbol:', symbol);
-  
-  if (convertedData && currency !== 'USD') {
-    console.log('Using converted data');
-    const result = {
-      display: `${symbol}${convertedData.convertedAmount.toFixed(2)}`,
-      rateInfo: `Rate: 1 USD = ${convertedData.exchangeRate.rate.toFixed(4)} ${currency}, ${convertedData.exchangeRate.date}`
-    };
-    console.log('Converted Result:', result);
-    console.log('=== END FORMAT DEBUG ===');
-    return result;
-  }
-  
-  console.log('Using original amount');
-  const result = {
-    display: `${symbol}${amount.toFixed(2)}`,
-    rateInfo: null
-  };
-  console.log('Original Result:', result);
-  console.log('=== END FORMAT DEBUG ===');
-  return result;
-};
+import { formatCurrency } from '../utils/currencyFormatter';
 
 // For Stripe integration (frontend)
 // import { loadStripe } from '@stripe/stripe-js';

@@ -246,14 +246,14 @@ export const changePlan = async (tenantId: string, newPlanId: number) => {
   }
 };
 
-export const makePayment = async (tenantId: string, invoiceId: number, amount: number, method: string = 'CARD', userId?: string) => {
+export const makePayment = async (tenantId: string, invoiceId: number, amount: number, method: string = 'CARD') => {
   // Get tenant settings for currency conversion
   const tenant = await prisma.tenant.findUnique({
     where: { id: tenantId },
     select: { settings: true }
   });
   
-  const tenantCurrency = tenant?.settings?.currency || 'USD';
+  const tenantCurrency = (tenant?.settings as any)?.currency || 'USD';
   
   // Verify invoice belongs to tenant
   const invoice = await prisma.invoice.findFirst({
@@ -269,29 +269,15 @@ export const makePayment = async (tenantId: string, invoiceId: number, amount: n
   }
 
   // Convert amounts to tenant currency for validation
-  let invoiceAmount = invoice.amount;
-  let totalPaid = invoice.payments.reduce((sum, payment) => sum + payment.amount, 0);
-  let currencySymbol = '$';
+  const { CurrencyConverter } = await import('../utils/currencyConverter');
+  const converter = new CurrencyConverter(tenantCurrency);
   
-  if (tenantCurrency !== 'USD') {
-    const { convertCurrency } = await import('../services/currencyService');
-    
-    // Convert invoice amount
-    const convertedInvoice = await convertCurrency(invoice.amount, 'USD', tenantCurrency);
-    invoiceAmount = convertedInvoice.convertedAmount;
-    
-    // Convert total payments
-    const convertedPayments = await Promise.all(
-      invoice.payments.map(payment => convertCurrency(payment.amount, 'USD', tenantCurrency))
-    );
-    totalPaid = convertedPayments.reduce((sum, converted) => sum + converted.convertedAmount, 0);
-    
-    // Set currency symbol
-    const symbols: { [key: string]: string } = {
-      'INR': '₹', 'EUR': '€', 'GBP': '£', 'JPY': '¥'
-    };
-    currencySymbol = symbols[tenantCurrency] || tenantCurrency;
-  }
+  const convertedInvoice = await converter.convertFromBase(invoice.amount);
+  const convertedPayments = await converter.convertArray(invoice.payments, 'amount');
+  
+  const invoiceAmount = convertedInvoice.convertedAmount;
+  const totalPaid = convertedPayments.reduce((sum, payment) => sum + payment.convertedAmount.convertedAmount, 0);
+  const currencySymbol = converter.formatCurrency(0, true).replace('0.00', '');
   
   const remainingAmount = invoiceAmount - totalPaid;
 
@@ -300,12 +286,8 @@ export const makePayment = async (tenantId: string, invoiceId: number, amount: n
   }
 
   // Convert payment amount back to USD for storage
-  let paymentAmountUSD = amount;
-  if (tenantCurrency !== 'USD') {
-    const { convertCurrency } = await import('../services/currencyService');
-    const convertedPayment = await convertCurrency(amount, tenantCurrency, 'USD');
-    paymentAmountUSD = convertedPayment.convertedAmount;
-  }
+  const convertedPayment = await converter.convertToBase(amount);
+  const paymentAmountUSD = convertedPayment.convertedAmount;
 
   // Create payment record (store in USD)
   const payment = await prisma.payment.create({
@@ -314,8 +296,7 @@ export const makePayment = async (tenantId: string, invoiceId: number, amount: n
       amount: paymentAmountUSD,
       paymentDate: new Date(),
       method,
-      reference: `DEMO-${Date.now()}`, // Demo reference
-      paidById: userId
+      reference: `DEMO-${Date.now()}` // Demo reference
     }
   });
 
