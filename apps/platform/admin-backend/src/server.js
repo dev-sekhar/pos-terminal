@@ -4,7 +4,7 @@ import cors from 'cors';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { getSalesOverview, getTopProducts, getSalesByCategory } from './controllers/reportsController.js';
+import { getSalesOverview, getTopProducts, getSalesByCategory, getTenantGrowth, getTenantEngagement, getMrr, getOutstandingPayments } from './controllers/reportsController.js';
 
 const app = express();
 const prisma = new PrismaClient();
@@ -395,6 +395,10 @@ app.delete('/api/payment-types/:id', authenticateToken, async (req, res) => {
 app.get('/api/reports/sales', authenticateToken, getSalesOverview);
 app.get('/api/reports/top-products', authenticateToken, getTopProducts);
 app.get('/api/reports/sales-by-category', authenticateToken, getSalesByCategory);
+app.get('/api/reports/tenant-growth', authenticateToken, getTenantGrowth);
+app.get('/api/reports/tenant-engagement', authenticateToken, getTenantEngagement);
+app.get('/api/reports/mrr', authenticateToken, getMrr);
+app.get('/api/reports/outstanding-payments', authenticateToken, getOutstandingPayments);
 
 const server = app.listen(PORT, () => {
   console.log(`Admin backend running on port ${PORT}`);
@@ -871,5 +875,3 @@ app.post('/api/tenants/:id/generate-invoice', authenticateToken, async (req, res
     res.status(500).json({ message: 'Failed to generate invoice' });
   }
 });
-
-
