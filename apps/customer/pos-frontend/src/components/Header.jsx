@@ -64,8 +64,7 @@ const Header = () => {
             </Button>
             {!isAuthPage && user.role === "ADMIN" && (
               <IconButton
-                color="inherit"
-                sx={{ ml: 1 }}
+                sx={{ color: (theme) => theme.palette.primary.contrastText, ml: 1 }}
                 onClick={() => navigate("/app/settings")}
               >
                 <SettingsIcon />

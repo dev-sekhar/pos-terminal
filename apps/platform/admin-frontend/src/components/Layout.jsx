@@ -12,15 +12,16 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
-  Button
+  Button,
+  IconButton
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
   People,
   Business,
-  Settings,
   Assessment,
-  Payment
+  Payment,
+  Settings
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 
@@ -37,7 +38,6 @@ const Layout = ({ children }) => {
     { text: 'Users', icon: <People />, path: '/users' },
     { text: 'Payments', icon: <Payment />, path: '/payments' },
     { text: 'Reports', icon: <Assessment />, path: '/reports' },
-    { text: 'Settings', icon: <Settings />, path: '/settings' },
   ];
 
   return (
@@ -45,7 +45,7 @@ const Layout = ({ children }) => {
       {/* Header */}
       <AppBar
         position="fixed"
-        sx={{ width: `calc(100% - ${drawerWidth}px)`, ml: `${drawerWidth}px` }}
+        sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}
       >
         <Toolbar>
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
@@ -57,6 +57,14 @@ const Layout = ({ children }) => {
           <Button color="inherit" onClick={logout}>
             Logout
           </Button>
+          {user && (
+            <IconButton
+              sx={{ color: (theme) => theme.palette.primary.contrastText, ml: 1 }}
+              onClick={() => navigate('/settings')}
+            >
+              <Settings />
+            </IconButton>
+          )}
         </Toolbar>
       </AppBar>
 
@@ -97,7 +105,7 @@ const Layout = ({ children }) => {
       {/* Main Content */}
       <Box
         component="main"
-        sx={{ flexGrow: 1, bgcolor: 'background.default', p: 3 }}
+        sx={{ flexGrow: 1, bgcolor: 'background.default', p: 3, mt: 8 }}
       >
         <Toolbar />
         {children}

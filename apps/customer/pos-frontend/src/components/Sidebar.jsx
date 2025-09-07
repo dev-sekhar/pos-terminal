@@ -97,19 +97,13 @@ const navItems = [
     permission: PERMISSIONS.MANAGE_BRANCHES,
   },
   {
-    text: "Settings",
-    path: "/app/settings",
-    icon: <SettingsIcon />,
-    permission: PERMISSIONS.MANAGE_SETTINGS,
-  },
-  {
     text: "Billing",
     path: "/app/billing",
     icon: <ReceiptIcon />,
     permission: PERMISSIONS.MANAGE_BILLING,
   },
 
-];
+];;
 
 const Sidebar = () => {
   const [productsOpen, setProductsOpen] = useState(false);
