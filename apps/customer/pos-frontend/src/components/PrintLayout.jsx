@@ -1,11 +1,12 @@
 import React from 'react';
 import '../styles/PrintLayout.css'; // We'll create this CSS file next
 
-const PrintLayout = React.forwardRef(({ title, companyName, details, tableHeaders, tableData, totals }, ref) => {
+const PrintLayout = React.forwardRef(({ title, companyName, printHeader, printFooter, details, tableHeaders, tableData, totals }, ref) => {
   if (!details || !tableData) return null;
 
   return (
     <div ref={ref} className="print-layout">
+      {printHeader && <div className="print-header-content">{printHeader}</div>}
       <h2 className="print-header">{title}</h2>
       {companyName && <p className="print-company-name">{companyName}</p>}
       <div className="print-divider"></div>
@@ -52,6 +53,7 @@ const PrintLayout = React.forwardRef(({ title, companyName, details, tableHeader
           </div>
         </>
       )}
+      {printFooter && <div className="print-footer-content">{printFooter}</div>}
     </div>
   );
 });

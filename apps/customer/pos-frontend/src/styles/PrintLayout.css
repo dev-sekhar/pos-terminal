@@ -42,3 +42,11 @@
 .print-table th, .print-table td {
   padding: 2px 1px;
 }
+
+.print-header-content,
+.print-footer-content {
+  text-align: center;
+  font-size: 10px;
+  margin-bottom: 5px;
+  white-space: pre-wrap; /* Preserve whitespace and allow line breaks */
+}

@@ -69,15 +69,17 @@ const Suppliers = () => {
   }, [tenant, fetchSuppliers]);
 
   const handleOpen = (supplier = null) => {
+    console.log('[Suppliers] handleOpen called with supplier:', supplier);
     setIsEditing(!!supplier);
     setCurrentSupplier(supplier ? {
       id: supplier.id,
       name: supplier.name,
-      contact: supplier.contact || "",
-      email: supplier.email || "",
-      address: supplier.address || "",
+      contact: supplier.contact ?? "",
+      email: supplier.email ?? "",
+      address: supplier.address ?? "",
       active: supplier.active
     } : initialFormState);
+    console.log('[Suppliers] currentSupplier.id after setting:', supplier?.id);
     setFormErrors([]);
     setOpen(true);
   };
@@ -103,6 +105,10 @@ const Suppliers = () => {
       const method = isEditing ? "PUT" : "POST";
       const url = isEditing ? `/api/suppliers/${currentSupplier.id}` : "/api/suppliers";
       
+      console.log('[Suppliers] handleSave - isEditing:', isEditing);
+      console.log('[Suppliers] handleSave - method:', method);
+      console.log('[Suppliers] handleSave - url:', url);
+
       await authenticatedFetch(url, {
         method,
         body: JSON.stringify(currentSupplier),
@@ -142,7 +148,7 @@ const Suppliers = () => {
         mb={2}
       >
         <Typography variant="h4">Suppliers</Typography>
-        <Button variant="contained" onClick={handleOpen}>
+        <Button variant="contained" onClick={() => handleOpen()}>
           Add Supplier
         </Button>
       </Box>

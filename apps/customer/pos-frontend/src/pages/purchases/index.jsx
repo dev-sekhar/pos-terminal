@@ -8,6 +8,7 @@ import {
 } from "@mui/material";
 import { useTenant } from "../../context/TenantContext";
 import { useSettings } from "../../context/SettingsContext";
+import { useUser } from "../../context/UserContext";
 import { useBranch } from "../../context/BranchContext";
 import { authenticatedFetch } from "../../utils/api";
 import PurchasesTable from "./PurchasesTable";
@@ -16,6 +17,7 @@ import PrintLayout from "../../components/PrintLayout";
 import SearchBar from "../../components/SearchBar";
 import ReadOnlyAlert from "../../components/ReadOnlyAlert";
 import { usePaymentStatus } from "../../hooks/usePaymentStatus";
+import printUtility from "../../utils/PrintUtility"; // Import the print utility
 import "../../styles/PrintLayout.css";
 
 const Purchases = () => {
@@ -25,6 +27,7 @@ const Purchases = () => {
     loading: settingsLoading,
     error: settingsError,
   } = useSettings();
+  const { user, loading: userLoading } = useUser();
   const { branch, branches, loading: branchLoading } = useBranch();
   const { canEdit } = usePaymentStatus();
 
@@ -58,7 +61,7 @@ const Purchases = () => {
     } catch (err) {
       setError(err.message);
     } finally {
-      setLoading(false); // This will now execute correctly.
+      setLoading(false);
     }
   }, [tenant, branch]);
 
@@ -98,14 +101,18 @@ const Purchases = () => {
     const dataForPrint = {
       title: "Purchase Order",
       companyName: tenant,
+      printHeader: settings.printHeader, // Pass printHeader from settings
+      printFooter: settings.printFooter, // Pass printFooter from settings
       details: [
         { label: "PO #", value: purchaseToPrint.poNumber },
+        { label: "Tax No", value: settings.taxNo || "N/A" }, // Add Tax No
         {
           label: "Date",
           value: new Date(purchaseToPrint.datetime).toLocaleDateString(),
         },
         { label: "Supplier", value: purchaseToPrint.supplier?.name || "N/A" },
-        { label: "Branch", value: purchaseToPrint.branch?.name || "N/A" },
+        { label: "Branch", value: branch?.name || "N/A" }, // Add Branch
+        { label: "Cashier", value: user?.name || "N/A" }, // Add Cashier
       ],
       tableHeaders: [
         { label: "Item", align: "left" },
@@ -117,29 +124,34 @@ const Purchases = () => {
       ]),
       totals: [],
     };
+    console.log('[Purchases] handlePrint - user:', user);
     setPrintData(dataForPrint);
     setTimeout(() => {
       if (printRef.current) {
         const printContents = printRef.current.innerHTML;
-        const printWindow = window.open("", "", "width=400,height=600");
-        printWindow.document.write(
-          `<html><head><title>Print PO</title><link rel="stylesheet" href="/src/styles/PrintLayout.css" type="text/css" media="print"/></head><body>${printContents}</body></html>`
-        );
-        printWindow.document.close();
-        printWindow.focus();
-        setTimeout(() => {
-          printWindow.print();
-          printWindow.close();
-          setPrintData(null);
-        }, 300);
+        printUtility(printContents, "Print PO", "width=800,height=800"); // Use the utility
+        setPrintData(null);
       }
     }, 100);
   };
 
   // The guard is correct: it waits for this component's data AND the context data.
-  if (loading || settingsLoading || branchLoading) return <CircularProgress />;
-  if (error || settingsError)
-    return <Alert severity="error">{error || settingsError}</Alert>;
+  if (loading || settingsLoading || branchLoading || userLoading) {
+    return (
+      <Box
+        display="flex"
+        justifyContent="center"
+        alignItems="center"
+        height="80vh"
+      >
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (error || settingsError) {
+    return (<Alert severity="error">{error || settingsError}</Alert>);
+  }
 
   // Filter purchases based on search term
   const filteredPurchases = purchases.filter(purchase => {

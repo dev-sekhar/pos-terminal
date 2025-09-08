@@ -18,6 +18,7 @@ import PrintLayout from "../../components/PrintLayout";
 import SearchBar from "../../components/SearchBar";
 import ReadOnlyAlert from "../../components/ReadOnlyAlert";
 import { usePaymentStatus } from "../../hooks/usePaymentStatus";
+import printUtility from "../../utils/PrintUtility"; // Import the print utility
 import "../../styles/PrintLayout.css";
 import "../../styles/Sales.css";
 
@@ -28,7 +29,7 @@ const Sales = () => {
     loading: settingsLoading,
     error: settingsError,
   } = useSettings();
-  const { user } = useUser();
+  const { user, loading: userLoading } = useUser();
   const { branch, branches, loading: branchLoading } = useBranch();
   const { canEdit } = usePaymentStatus();
 
@@ -107,19 +108,22 @@ const Sales = () => {
   const handleExpandClick = (id) =>
     setExpanded((exp) => ({ ...exp, [id]: !exp[id] }));
 
-  // --- THIS IS THE RESTORED PRINT LOGIC ---
   const handlePrint = (saleToPrint) => {
     const currency = settings?.currency || "$";
     const dataForPrint = {
       title: "Sales Receipt",
       companyName: tenant,
+      printHeader: settings.printHeader, // Pass printHeader from settings
+      printFooter: settings.printFooter, // Pass printFooter from settings
       details: [
         { label: "Invoice #", value: saleToPrint.invoice },
+        { label: "Tax No", value: settings.taxNo || "N/A" }, // Add Tax No
         {
           label: "Date",
           value: new Date(saleToPrint.datetime).toLocaleString(),
         },
-        { label: "Payment", value: saleToPrint.paymentType },
+        { label: "Branch", value: branch?.name || "N/A" }, // Add Branch
+        { label: "Cashier", value: user?.name || "N/A" }, // Add Cashier
       ],
       tableHeaders: [
         { label: "Item", align: "left" },
@@ -162,23 +166,14 @@ const Sales = () => {
     setTimeout(() => {
       if (printRef.current) {
         const printContents = printRef.current.innerHTML;
-        const printWindow = window.open("", "", "width=400,height=800");
-        printWindow.document.write(
-          `<html><head><title>Print</title><link rel="stylesheet" href="/src/styles/PrintLayout.css" type="text/css" media="print"/></head><body>${printContents}</body></html>`
-        );
-        printWindow.document.close();
-        printWindow.focus();
-        setTimeout(() => {
-          printWindow.print();
-          printWindow.close();
-          setPrintData(null);
-        }, 300);
+        printUtility(printContents, "Print Sales Receipt", "width=800,height=800"); // Use the utility
+        setPrintData(null);
       }
     }, 100);
   };
   // --- END OF RESTORED LOGIC ---
 
-  if (loading || settingsLoading || branchLoading) {
+  if (loading || settingsLoading || branchLoading || userLoading) {
     return (
       <Box
         display="flex"
@@ -191,8 +186,9 @@ const Sales = () => {
     );
   }
 
-  if (error || settingsError)
-    return <Alert severity="error">{error || settingsError}</Alert>;
+  if (error || settingsError) {
+    return (<Alert severity="error">{error || settingsError}</Alert>);
+  }
 
   // Filter sales based on search term
   const filteredSales = sales.filter(sale => {

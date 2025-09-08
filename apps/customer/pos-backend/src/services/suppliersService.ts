@@ -71,6 +71,7 @@ export const createOrLinkSupplier = async (data: Prisma.SupplierCreateInput, ten
 
 // Update a supplier (only if linked to the tenant)
 export const updateSupplier = async (supplierId: number, data: Prisma.SupplierUpdateInput, tenantId: string): Promise<Supplier | null> => {
+  console.log(`[suppliersService] updateSupplier called with: supplierId=${supplierId}, tenantId=${tenantId}`);
   // First check if supplier is linked to this tenant
   const link = await prisma.tenantsOnSuppliers.findUnique({
     where: { tenantId_supplierId: { tenantId, supplierId } }

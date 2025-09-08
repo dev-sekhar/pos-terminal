@@ -305,7 +305,7 @@ const Settings = () => {
         </Box>
       </Paper>
 
-      <Paper sx={{ p: 2, mb: 3 }}>
+            <Paper sx={{ p: 2, mb: 3 }}>
         <Typography variant="h6">Localization</Typography>
         <Grid container spacing={2} sx={{ mt: 0.5 }}>
           <Grid item xs={12} sm={6} md={4}>
@@ -359,6 +359,34 @@ const Settings = () => {
             </TextField>
           </Grid>
         </Grid>
+      </Paper>
+
+      <Paper sx={{ p: 2, mb: 3 }}>
+        <Typography variant="h6">Print Settings</Typography>
+        <TextField
+          label="Print Header (Multi-line)"
+          name="printHeader"
+          value={settings.printHeader || ""}
+          onChange={(e) => handleSimpleChange({ printHeader: e.target.value })}
+          onBlur={(e) => handleSimpleChange({ printHeader: e.target.value })}
+          multiline
+          rows={4}
+          fullWidth
+          sx={{ mt: 2, mb: 2 }}
+          disabled={!isAdmin}
+        />
+        <TextField
+          label="Print Footer (Multi-line)"
+          name="printFooter"
+          value={settings.printFooter || ""}
+          onChange={(e) => handleSimpleChange({ printFooter: e.target.value })}
+          onBlur={(e) => handleSimpleChange({ printFooter: e.target.value })}
+          multiline
+          rows={4}
+          fullWidth
+          sx={{ mb: 2 }}
+          disabled={!isAdmin}
+        />
       </Paper>
 
       <Paper sx={{ p: 2, mb: 3 }}>
